@@ -312,7 +312,7 @@ int main(int argc, char** argv) {
     printf("\x1b[17;1HPress START to exit");
     
     // Example URL - user should modify this
-    const char* download_url = "http://example.com/file.zip";
+    const char* download_url = "https://example.com/file.zip";
     const char* extract_path = DEFAULT_EXTRACT_PATH;
     
     bool started = false;

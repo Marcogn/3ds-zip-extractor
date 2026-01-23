@@ -52,11 +52,11 @@ The output will be `3ds-zip-extractor.3dsx`
 
 ### Setting the Download URL
 
-Before building, edit `source/main.c` and change the `download_url` variable on line 311:
+Before building, edit `source/main.c` and change the `download_url` variable on line 315:
 
 ```c
 // Example URL - user should modify this
-const char* download_url = "http://example.com/file.zip";
+const char* download_url = "https://example.com/file.zip";
 ```
 
 You can use:

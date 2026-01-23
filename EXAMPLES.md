@@ -4,9 +4,9 @@
 
 ### Small Test Files (< 10MB)
 ```
-http://speedtest.tele2.net/1MB.zip
-http://speedtest.tele2.net/5MB.zip
-http://speedtest.tele2.net/10MB.zip
+https://speedtest.tele2.net/1MB.zip
+https://speedtest.tele2.net/5MB.zip
+https://speedtest.tele2.net/10MB.zip
 ```
 
 ### Archive Formats
@@ -54,11 +54,11 @@ Example:
 
 ## Configuring in main.c
 
-Replace line 311 in `source/main.c`:
+Replace line 315 in `source/main.c`:
 
 ```c
 // For direct URL:
-const char* download_url = "http://speedtest.tele2.net/10MB.zip";
+const char* download_url = "https://speedtest.tele2.net/10MB.zip";
 
 // For Google Drive:
 const char* download_url = "https://drive.google.com/file/d/YOUR_FILE_ID/view";
@@ -68,12 +68,12 @@ const char* download_url = "https://drive.google.com/file/d/YOUR_FILE_ID/view";
 
 1. Start with a small file to test the setup:
 ```c
-const char* download_url = "http://speedtest.tele2.net/1MB.zip";
+const char* download_url = "https://speedtest.tele2.net/1MB.zip";
 ```
 
 2. Once working, try a larger file:
 ```c
-const char* download_url = "http://speedtest.tele2.net/10MB.zip";
+const char* download_url = "https://speedtest.tele2.net/10MB.zip";
 ```
 
 3. Finally, use your target file URL
