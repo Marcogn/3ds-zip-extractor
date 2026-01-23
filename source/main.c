@@ -10,9 +10,19 @@
 #define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
 #define DEFAULT_EXTRACT_PATH "sdmc:/extracted/"
 #define TEMP_DOWNLOAD_PATH "sdmc:/temp_download.tmp"
-#define CONFIG_FILE_PATH "sdmc:/3ds/zip-extractor/urls.txt"
+#define CONFIG_FILE_PATH "sdmc:/3ds/zip-extractor/config.txt"
 #define MAX_URLS 50
 #define MAX_URL_LENGTH 512
+#define MAX_PATH_LENGTH 256
+
+// Download states for queue management
+typedef enum {
+    DOWNLOAD_PENDING,
+    DOWNLOAD_IN_PROGRESS,
+    DOWNLOAD_COMPLETED,
+    DOWNLOAD_FAILED,
+    DOWNLOAD_SKIPPED
+} DownloadState;
 
 typedef struct {
     FILE* file;
@@ -28,13 +38,118 @@ typedef struct {
 } ExtractData;
 
 typedef struct {
-    char urls[MAX_URLS][MAX_URL_LENGTH];
+    char url[MAX_URL_LENGTH];
+    DownloadState state;
+    char error_msg[128];
+} DownloadItem;
+
+typedef struct {
+    DownloadItem items[MAX_URLS];
     int count;
-} UrlList;
+    char extract_path[MAX_PATH_LENGTH];
+    bool auto_retry;
+    int max_retries;
+} DownloadQueue;
 
 static ExtractData extract_data = {0};
 
-// Function to read URLs from configuration file
+// Function to read configuration file with settings and URLs
+static int read_config_file(const char* file_path, DownloadQueue* queue) {
+    FILE* file = fopen(file_path, "r");
+    if (!file) {
+        return -1;
+    }
+    
+    // Set defaults
+    strncpy(queue->extract_path, DEFAULT_EXTRACT_PATH, MAX_PATH_LENGTH - 1);
+    queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
+    queue->auto_retry = false;
+    queue->max_retries = 3;
+    queue->count = 0;
+    
+    char line[MAX_URL_LENGTH];
+    
+    while (fgets(line, sizeof(line), file) != NULL) {
+        // Remove trailing newline and carriage return
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[len-1] = '\0';
+            len--;
+        }
+        
+        // Skip empty lines and comments
+        if (len == 0 || line[0] == '#') {
+            continue;
+        }
+        
+        // Check for settings (format: setting=value)
+        if (strstr(line, "extract_path=") == line) {
+            strncpy(queue->extract_path, line + 13, MAX_PATH_LENGTH - 1);
+            queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
+            continue;
+        }
+        
+        if (strstr(line, "auto_retry=") == line) {
+            queue->auto_retry = (strcmp(line + 11, "true") == 0 || strcmp(line + 11, "1") == 0);
+            continue;
+        }
+        
+        if (strstr(line, "max_retries=") == line) {
+            queue->max_retries = atoi(line + 12);
+            if (queue->max_retries < 0) queue->max_retries = 0;
+            if (queue->max_retries > 10) queue->max_retries = 10;
+            continue;
+        }
+        
+        // Otherwise, treat as URL
+        if (queue->count < MAX_URLS) {
+            strncpy(queue->items[queue->count].url, line, MAX_URL_LENGTH - 1);
+            queue->items[queue->count].url[MAX_URL_LENGTH - 1] = '\0';
+            queue->items[queue->count].state = DOWNLOAD_PENDING;
+            queue->items[queue->count].error_msg[0] = '\0';
+            queue->count++;
+        }
+    }
+    
+    fclose(file);
+    return queue->count;
+}
+
+// Display queue status
+static void display_queue_status(DownloadQueue* queue, int current_page) {
+    consoleClear();
+    printf("\x1b[1;1HZip Extractor - Queue Status");
+    printf("\x1b[2;1H================================");
+    
+    int items_per_page = 12;
+    int start = current_page * items_per_page;
+    int end = start + items_per_page;
+    if (end > queue->count) end = queue->count;
+    
+    printf("\x1b[4;1HShowing %d-%d of %d", start + 1, end, queue->count);
+    
+    for (int i = start; i < end; i++) {
+        int line = 6 + (i - start);
+        const char* state_str = "?";
+        
+        switch (queue->items[i].state) {
+            case DOWNLOAD_PENDING: state_str = "[ ]"; break;
+            case DOWNLOAD_IN_PROGRESS: state_str = "[>]"; break;
+            case DOWNLOAD_COMPLETED: state_str = "[✓]"; break;
+            case DOWNLOAD_FAILED: state_str = "[X]"; break;
+            case DOWNLOAD_SKIPPED: state_str = "[-]"; break;
+        }
+        
+        printf("\x1b[%d;1H%s %.38s", line, state_str, queue->items[i].url);
+    }
+    
+    int total_pages = (queue->count + items_per_page - 1) / items_per_page;
+    printf("\x1b[20;1HPage %d/%d", current_page + 1, total_pages);
+    printf("\x1b[22;1HL/R: Change page  Y: Skip failed");
+    printf("\x1b[23;1HA: Continue  B: Back  START: Exit");
+}
+
+// Function to read URLs from configuration file (legacy support)
 static int read_urls_from_file(const char* file_path, UrlList* url_list) {
     FILE* file = fopen(file_path, "r");
     if (!file) {
@@ -373,15 +488,18 @@ int main(int argc, char** argv) {
     curl_global_init(CURL_GLOBAL_ALL);
     
     const char* extract_path = DEFAULT_EXTRACT_PATH;
-    UrlList url_list = {0};
+    DownloadQueue queue = {0};
     
     // Create config directory if it doesn't exist
     ret = mkdir("sdmc:/3ds", 0777);
     ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
     
-    // Try to read URLs from config file
-    int url_count = read_urls_from_file(CONFIG_FILE_PATH, &url_list);
+    // Try to read configuration file
+    int url_count = read_config_file(CONFIG_FILE_PATH, &queue);
+    if (url_count > 0) {
+        extract_path = queue.extract_path;
+    }
     
     printf("\x1b[2;1HZip Extractor for 3DS");
     printf("\x1b[4;1H================================");
@@ -391,24 +509,31 @@ int main(int argc, char** argv) {
         printf("\x1b[8;1HConfig file:");
         printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
         printf("\x1b[11;1HExtract path:");
-        printf("\x1b[12;1H  %s", DEFAULT_EXTRACT_PATH);
-        printf("\x1b[14;1HPress A to start downloads");
-        printf("\x1b[15;1HPress X to view URLs");
-        printf("\x1b[16;1HPress START to exit");
+        printf("\x1b[12;1H  %s", extract_path);
+        if (queue.auto_retry) {
+            printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+        }
+        printf("\x1b[15;1HPress A to start downloads");
+        printf("\x1b[16;1HPress X to view queue");
+        printf("\x1b[17;1HPress START to exit");
     } else {
         printf("\x1b[6;1HNo config file found!");
         printf("\x1b[8;1HPlease create:");
         printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-        printf("\x1b[11;1HAdd one URL per line");
-        printf("\x1b[12;1HExample:");
-        printf("\x1b[13;1H  https://example.com/file.zip");
-        printf("\x1b[14;1H  https://drive.google.com/...");
-        printf("\x1b[16;1HPress START to exit");
+        printf("\x1b[11;1HAdd URLs (one per line) or");
+        printf("\x1b[12;1Huse old format at:");
+        printf("\x1b[13;1H  sdmc:/3ds/zip-extractor/urls.txt");
+        printf("\x1b[15;1HExample config.txt:");
+        printf("\x1b[16;1H  extract_path=/extracted/");
+        printf("\x1b[17;1H  auto_retry=true");
+        printf("\x1b[18;1H  https://example.com/file.zip");
+        printf("\x1b[20;1HPress START to exit");
     }
     
     bool started = false;
     bool cancelled = false;
-    bool show_urls = false;
+    bool show_queue = false;
+    int queue_page = 0;
     
     while (aptMainLoop()) {
         hidScanInput();
@@ -418,84 +543,149 @@ int main(int argc, char** argv) {
             break;
         }
         
-        if ((kDown & KEY_X) && url_count > 0 && !started && !show_urls) {
-            show_urls = true;
-            consoleClear();
-            printf("\x1b[2;1HZip Extractor for 3DS");
-            printf("\x1b[4;1H================================");
-            printf("\x1b[6;1HURLs to download (%d):", url_count);
+        // Queue navigation
+        if (show_queue) {
+            int total_pages = (url_count + 11) / 12;
             
-            int display_count = (url_count > 8) ? 8 : url_count;
-            for (int i = 0; i < display_count; i++) {
-                printf("\x1b[%d;1H%d. %.42s", 8 + i, i + 1, url_list.urls[i]);
+            if ((kDown & KEY_R) && queue_page < total_pages - 1) {
+                queue_page++;
+                display_queue_status(&queue, queue_page);
             }
-            if (url_count > 8) {
-                printf("\x1b[17;1H... and %d more", url_count - 8);
+            
+            if ((kDown & KEY_L) && queue_page > 0) {
+                queue_page--;
+                display_queue_status(&queue, queue_page);
             }
-            printf("\x1b[19;1HPress B to go back");
-        }
-        
-        if ((kDown & KEY_B) && show_urls) {
-            show_urls = false;
-            consoleClear();
-            printf("\x1b[2;1HZip Extractor for 3DS");
-            printf("\x1b[4;1H================================");
-            printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
-            printf("\x1b[8;1HConfig file:");
-            printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-            printf("\x1b[11;1HExtract path:");
-            printf("\x1b[12;1H  %s", DEFAULT_EXTRACT_PATH);
-            printf("\x1b[14;1HPress A to start downloads");
-            printf("\x1b[15;1HPress X to view URLs");
-            printf("\x1b[16;1HPress START to exit");
-        }
-        
-        if ((kDown & KEY_A) && url_count > 0 && !started && !show_urls) {
-            started = true;
             
-            // Create extract directory
-            mkdir("sdmc:/extracted", 0777);
+            if (kDown & KEY_Y) {
+                // Skip all failed downloads
+                for (int i = 0; i < url_count; i++) {
+                    if (queue.items[i].state == DOWNLOAD_FAILED) {
+                        queue.items[i].state = DOWNLOAD_SKIPPED;
+                    }
+                }
+                display_queue_status(&queue, queue_page);
+            }
             
-            int successful = 0;
-            int failed = 0;
-            u64 total_files_extracted = 0;
-            
-            // Process each URL
-            for (int i = 0; i < url_count && !cancelled; i++) {
+            if (kDown & KEY_B) {
+                show_queue = false;
+                queue_page = 0;
                 consoleClear();
                 printf("\x1b[2;1HZip Extractor for 3DS");
                 printf("\x1b[4;1H================================");
-                printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
-                printf("\x1b[8;1HStarting download...");
-                
-                gfxFlushBuffers();
-                gfxSwapBuffers();
-                gspWaitForVBlank();
-                
-                // Download file
-                Result download_result = download_file(url_list.urls[i], TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
-                
-                if (cancelled) {
-                    break;
+                printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
+                printf("\x1b[8;1HConfig file:");
+                printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
+                printf("\x1b[11;1HExtract path:");
+                printf("\x1b[12;1H  %s", extract_path);
+                if (queue.auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                }
+                printf("\x1b[15;1HPress A to start downloads");
+                printf("\x1b[16;1HPress X to view queue");
+                printf("\x1b[17;1HPress START to exit");
+            }
+            
+            if ((kDown & KEY_A) && !started) {
+                show_queue = false;
+                started = true;
+                // Continue to processing below
+            }
+        }
+        
+        // Show queue
+        if ((kDown & KEY_X) && url_count > 0 && !started && !show_queue) {
+            show_queue = true;
+            queue_page = 0;
+            display_queue_status(&queue, queue_page);
+        }
+        
+        // Start processing
+        if ((kDown & KEY_A) && url_count > 0 && !started && !show_queue) {
+            started = true;
+        }
+        
+        if (started) {
+            // Create extract directory
+            mkdir(extract_path, 0777);
+            
+            int successful = 0;
+            int failed = 0;
+            int skipped = 0;
+            u64 total_files_extracted = 0;
+            
+            // Process each URL in queue
+            for (int i = 0; i < url_count && !cancelled; i++) {
+                // Skip items that are skipped or already completed
+                if (queue.items[i].state == DOWNLOAD_SKIPPED) {
+                    skipped++;
+                    continue;
+                }
+                if (queue.items[i].state == DOWNLOAD_COMPLETED) {
+                    successful++;
+                    continue;
                 }
                 
-                if (download_result == 0) {
-                    // Extract archive
-                    Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
+                queue.items[i].state = DOWNLOAD_IN_PROGRESS;
+                
+                int retries = 0;
+                bool download_success = false;
+                
+                do {
+                    consoleClear();
+                    printf("\x1b[2;1HZip Extractor for 3DS");
+                    printf("\x1b[4;1H================================");
+                    printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
+                    if (retries > 0) {
+                        printf("\x1b[7;1HRetry attempt %d/%d", retries, queue.max_retries);
+                    }
+                    printf("\x1b[9;1HStarting download...");
                     
-                    if (extract_result == 0) {
-                        successful++;
-                        total_files_extracted += extract_data.extracted_files;
-                    } else if (extract_result == -2) {
-                        cancelled = true;
+                    gfxFlushBuffers();
+                    gfxSwapBuffers();
+                    gspWaitForVBlank();
+                    
+                    // Download file
+                    Result download_result = download_file(queue.items[i].url, TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
+                    
+                    if (cancelled) {
                         break;
-                    } else {
-                        failed++;
                     }
                     
-                    // Clean up temp file
-                    remove(TEMP_DOWNLOAD_PATH);
-                } else {
+                    if (download_result == 0) {
+                        // Extract archive
+                        Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
+                        
+                        if (extract_result == 0) {
+                            queue.items[i].state = DOWNLOAD_COMPLETED;
+                            successful++;
+                            total_files_extracted += extract_data.extracted_files;
+                            download_success = true;
+                        } else if (extract_result == -2) {
+                            cancelled = true;
+                            break;
+                        } else {
+                            strncpy(queue.items[i].error_msg, "Extraction failed", sizeof(queue.items[i].error_msg) - 1);
+                        }
+                        
+                        // Clean up temp file
+                        remove(TEMP_DOWNLOAD_PATH);
+                    } else {
+                        strncpy(queue.items[i].error_msg, "Download failed", sizeof(queue.items[i].error_msg) - 1);
+                    }
+                    
+                    if (!download_success && queue.auto_retry && retries < queue.max_retries) {
+                        retries++;
+                        // Wait a bit before retry
+                        svcSleepThread(2000000000LL); // 2 seconds
+                    } else {
+                        break;
+                    }
+                    
+                } while (!download_success && retries <= queue.max_retries);
+                
+                if (!download_success && !cancelled) {
+                    queue.items[i].state = DOWNLOAD_FAILED;
                     failed++;
                 }
             }
@@ -514,18 +704,58 @@ int main(int argc, char** argv) {
             printf("\x1b[8;1HSummary:");
             printf("\x1b[9;1H  Successful: %d", successful);
             printf("\x1b[10;1H  Failed: %d", failed);
-            printf("\x1b[11;1H  Total files extracted: %llu", total_files_extracted);
-            printf("\x1b[13;1HOutput directory:");
-            printf("\x1b[14;1H  %s", extract_path);
-            printf("\x1b[17;1HPress START to exit");
+            printf("\x1b[11;1H  Skipped: %d", skipped);
+            printf("\x1b[12;1H  Total files extracted: %llu", total_files_extracted);
+            printf("\x1b[14;1HOutput directory:");
+            printf("\x1b[15;1H  %s", extract_path);
+            
+            if (failed > 0) {
+                printf("\x1b[17;1HPress X to view failed items");
+                printf("\x1b[18;1HPress A to retry failed");
+            }
+            printf("\x1b[19;1HPress START to exit");
             
             started = false;
+            
+            // Wait for user input
+            while (aptMainLoop()) {
+                hidScanInput();
+                u32 kDown2 = hidKeysDown();
+                
+                if (kDown2 & KEY_START) {
+                    goto exit_loop;
+                }
+                
+                if ((kDown2 & KEY_X) && failed > 0) {
+                    show_queue = true;
+                    queue_page = 0;
+                    display_queue_status(&queue, queue_page);
+                    break;
+                }
+                
+                if ((kDown2 & KEY_A) && failed > 0) {
+                    // Reset failed items to pending and restart
+                    for (int i = 0; i < url_count; i++) {
+                        if (queue.items[i].state == DOWNLOAD_FAILED) {
+                            queue.items[i].state = DOWNLOAD_PENDING;
+                        }
+                    }
+                    started = true;
+                    break;
+                }
+                
+                gfxFlushBuffers();
+                gfxSwapBuffers();
+                gspWaitForVBlank();
+            }
         }
         
         gfxFlushBuffers();
         gfxSwapBuffers();
         gspWaitForVBlank();
     }
+    
+exit_loop:
     
     curl_global_cleanup();
     socExit();

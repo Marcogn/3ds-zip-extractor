@@ -2,6 +2,35 @@
 
 All notable changes to the 3DS Zip Extractor project will be documented in this file.
 
+## [1.2.0] - 2026-01-23
+
+### Added
+- **Enhanced configuration file**: Now supports both settings and URLs in single file (`config.txt`)
+- **Download queue management**: 
+  - Visual queue status with indicators ([ ], [>], [✓], [X], [-])
+  - Navigate queue with L/R buttons (paginated view)
+  - Skip failed downloads with Y button
+  - Retry failed downloads after completion with A button
+- **Auto-retry feature**: Automatically retry failed downloads
+  - Configurable with `auto_retry=true/false` in config
+  - Configurable max retries with `max_retries=<0-10>` setting
+- **Configurable extract path**: Set custom extract location via `extract_path=` setting
+- **Download state tracking**: Each download has status (pending, in progress, completed, failed, skipped)
+- **Enhanced error messages**: Per-download error tracking
+
+### Changed
+- Configuration file moved from `urls.txt` to `config.txt` (still supports old format)
+- Queue view shows more information (status indicators, error messages)
+- Summary screen now shows skipped count in addition to successful/failed
+- Can retry failed downloads without restarting app
+- Settings are now part of config file instead of source code constants
+
+### Improved
+- Better download workflow with queue management
+- More user control over failed downloads
+- Clearer visual feedback with status indicators
+- No need to restart app to retry failed downloads
+
 ## [1.1.0] - 2026-01-23
 
 ### Added
@@ -87,19 +116,22 @@ All notable changes to the 3DS Zip Extractor project will be documented in this 
 ## Future Enhancements (Potential)
 
 ### Planned Features
-- [ ] Software keyboard for adding URLs directly from the app
+- [ ] Software keyboard for adding/editing URLs directly from the app
 - [ ] Edit configuration file from within the app
-- [ ] Download queue management (pause, resume, reorder)
+- [ ] Pause/resume individual downloads
+- [ ] Reorder queue items
 - [ ] File browser to select extract location
+- [ ] Save/load multiple configuration profiles
 - [ ] Better error messages with troubleshooting hints
-- [ ] Download history and retry failed downloads
+- [ ] Download history and statistics
 - [ ] Bandwidth limiting option
 - [ ] Proxy support
 - [ ] Authentication support for protected files
-- [ ] Archive listing before extraction (preview)
+- [ ] Archive listing before extraction (preview contents)
 - [ ] Selective file extraction from archives
 - [ ] Multiple extract format support (extract to same name, numbered folders, etc.)
 - [ ] Parallel downloads (multiple files at once)
+- [ ] Download scheduling
 
 ### Known Limitations
 - Sequential processing only (one file at a time)
@@ -107,6 +139,7 @@ All notable changes to the 3DS Zip Extractor project will be documented in this 
 - No GUI, console-based interface only
 - Google Drive large files (>100MB) may require additional handling for virus scan page
 - No background operation support
+- Cannot pause/resume individual downloads (only cancel all)
 
 ## Contributing
 
@@ -119,5 +152,6 @@ Contributions are welcome! Please feel free to submit pull requests for:
 
 ## Version History
 
+- **1.2.0** (2026-01-23): Added enhanced configuration and queue management
 - **1.1.0** (2026-01-23): Added configuration file support and multiple downloads
 - **1.0.0** (2026-01-23): Initial release with core functionality

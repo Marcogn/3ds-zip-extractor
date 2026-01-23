@@ -16,14 +16,16 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 
 - **Download from URLs**: Download compressed files from any HTTP/HTTPS URL
 - **Multiple Downloads**: Support for downloading and extracting multiple files sequentially
-- **Configuration File**: URLs are read from a text file (one per line)
+- **Configuration File**: Enhanced config file with both settings and URLs
+- **Download Queue Management**: View queue status, skip failed items, retry downloads
+- **Auto-Retry**: Automatically retry failed downloads with configurable attempts
 - **Google Drive Support**: Automatically converts Google Drive URLs to direct download links
 - **Multiple Archive Formats**: Supports ZIP, TAR, 7Z, and many other formats via libarchive
 - **Resume Support**: Automatically resumes interrupted downloads
 - **Large File Handling**: Efficient streaming for large files
 - **Progress Tracking**: Real-time download and extraction progress display
 - **Batch Summary**: Shows statistics after processing all files
-- **Configurable Output**: Extract to default or custom directory
+- **Configurable Output**: Custom extract path via configuration file
 
 ## Requirements
 
@@ -64,18 +66,35 @@ The output will be `3ds-zip-extractor.3dsx`
 
 ## Usage
 
-### Setting Up URLs
+### Setting Up Configuration
 
-1. Copy `urls.txt` to your SD card at: `sdmc:/3ds/zip-extractor/urls.txt`
+1. Copy `config.txt` to your SD card at: `sdmc:/3ds/zip-extractor/config.txt`
 
-2. Edit the file and add your download URLs (one per line):
+2. Edit the file to configure settings and add your URLs:
 
 ```
-# Comments start with #
+# Settings
+extract_path=sdmc:/extracted/
+auto_retry=true
+max_retries=3
+
+# URLs (one per line)
 https://example.com/file1.zip
 https://example.com/file2.tar.gz
 https://drive.google.com/file/d/FILE_ID/view
 ```
+
+### Configuration Options
+
+**Settings:**
+- `extract_path=<path>` - Where to extract files (default: `sdmc:/extracted/`)
+- `auto_retry=true/false` - Automatically retry failed downloads (default: false)
+- `max_retries=<0-10>` - Maximum retry attempts (default: 3)
+
+**URLs:**
+- Add one URL per line after the settings
+- Lines starting with `#` are comments
+- Empty lines are ignored
 
 ### Supported URL Formats
 
@@ -101,15 +120,64 @@ By default, files are extracted to `sdmc:/extracted/`. To change this, modify th
 
 1. Build the application: `make`
 2. Copy `3ds-zip-extractor.3dsx` to your SD card's `/3ds/` folder
-3. Copy `urls.txt` to `/3ds/zip-extractor/urls.txt` on your SD card
-4. Edit `urls.txt` to add your download URLs
+3. Copy `config.txt` to `/3ds/zip-extractor/config.txt` on your SD card
+4. Edit `config.txt` to configure settings and add your download URLs
 5. Launch via Homebrew Launcher
-6. Press **X** to view configured URLs
+6. Press **X** to view download queue with status indicators
 7. Press **A** to start downloading and extracting all files
-8. Press **B** to cancel during download or extraction
-9. Press **START** to exit
+8. Press **Y** (in queue view) to skip all failed downloads
+9. Press **L/R** (in queue view) to navigate pages
+10. Press **B** to cancel during download or go back in menus
+11. Press **A** (after completion) to retry failed downloads
+12. Press **START** to exit
+
+### Queue Status Indicators
+
+- `[ ]` - Pending (not yet downloaded)
+- `[>]` - In Progress (currently downloading)
+- `[✓]` - Completed (successfully extracted)
+- `[X]` - Failed (download or extraction error)
+- `[-]` - Skipped (manually skipped)
 
 ## Features Detail
+
+### Enhanced Configuration File
+
+The `config.txt` file now supports both settings and URLs in a single file:
+
+**Settings Section:**
+```
+extract_path=sdmc:/my-games/
+auto_retry=true
+max_retries=3
+```
+
+**URLs Section:**
+```
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+```
+
+Settings must come before URLs. All settings are optional and have defaults.
+
+### Download Queue Management
+
+The application features a comprehensive queue management system:
+
+**View Queue Status:**
+- Press X to see all downloads with their current status
+- Navigate multiple pages with L/R buttons
+- See pending, completed, failed, and skipped items
+
+**Manage Failed Downloads:**
+- Press Y to skip all failed downloads
+- Press A after completion to retry only failed items
+- Auto-retry option retries failed downloads automatically
+
+**Resume Capability:**
+- Queue state persists through the session
+- Completed items won't be re-downloaded
+- Failed items can be retried without re-downloading successful ones
 
 ### Multiple File Downloads
 
