@@ -29,7 +29,7 @@ chmod +x ./install-devkitpro-pacman
 sudo ./install-devkitpro-pacman
 
 # Installa i tool per 3DS
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls
+sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-citro3d 3ds-citro2d
 ```
 
 #### Su macOS:
@@ -42,7 +42,7 @@ brew tap devkitpro/tools
 brew install devkitpro-pacman
 
 # Installa i tool per 3DS
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls
+sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-citro3d 3ds-citro2d
 ```
 
 ### Passo 2: Compilare l'applicazione (su PC)
@@ -127,7 +127,7 @@ chmod +x ./install-devkitpro-pacman
 sudo ./install-devkitpro-pacman
 
 # Install 3DS development tools
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls
+sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-citro3d 3ds-citro2d
 ```
 
 #### On macOS:
@@ -140,7 +140,7 @@ brew tap devkitpro/tools
 brew install devkitpro-pacman
 
 # Install 3DS development tools
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls
+sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-citro3d 3ds-citro2d
 ```
 
 ### Step 2: Compile the application (on PC)

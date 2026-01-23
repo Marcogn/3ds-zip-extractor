@@ -14,6 +14,7 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 
 ## Features
 
+- **Hybrid GUI**: Console text + graphical progress bars for better visual feedback
 - **Download from URLs**: Download compressed files from any HTTP/HTTPS URL
 - **Multiple Downloads**: Support for downloading and extracting multiple files sequentially
 - **Configuration File**: Enhanced config file with both settings and URLs
@@ -25,7 +26,7 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 - **Multiple Archive Formats**: Supports ZIP, TAR, 7Z, and many other formats via libarchive
 - **Resume Support**: Automatically resumes interrupted downloads
 - **Large File Handling**: Efficient streaming for large files
-- **Progress Tracking**: Real-time download and extraction progress display
+- **Progress Tracking**: Real-time download and extraction progress display with graphical bars
 - **Batch Summary**: Shows statistics after processing all files
 - **Configurable Output**: Custom extract path via configuration file or file browser
 
@@ -34,7 +35,7 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 ### To Build (on PC):
 - devkitARM toolchain
 - libctru
-- citro3d
+- citro3d and citro2d (for hybrid GUI)
 - libcurl (from devkitPro portlibs)
 - libarchive (from devkitPro portlibs)
 - mbedtls (from devkitPro portlibs)
@@ -54,7 +55,7 @@ Quick version:
 
 1. Install devkitPro and 3DS development tools
 ```bash
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls
+sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-citro3d 3ds-citro2d
 ```
 
 2. Clone and build:

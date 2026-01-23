@@ -8,6 +8,7 @@
 #include <curl/curl.h>
 #include <archive.h>
 #include <archive_entry.h>
+#include "gui.h"
 
 #define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
 #define DEFAULT_EXTRACT_PATH "sdmc:/extracted/"
@@ -17,6 +18,10 @@
 #define MAX_URL_LENGTH 512
 #define MAX_PATH_LENGTH 256
 #define MAX_DIR_ENTRIES 100
+
+// Global GUI context for hybrid rendering
+static GUI g_gui = {0};
+static bool g_use_gui = false;
 
 // Download states for queue management
 typedef enum {
@@ -379,7 +384,7 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     return 0;
 }
 
-// Update download progress display
+// Update download progress display with hybrid GUI
 static void update_download_display(int current, int total, DownloadData* data, const char* url) {
     consoleClear();
     printf("\x1b[2;1HZip Extractor for 3DS");
@@ -396,6 +401,17 @@ static void update_download_display(int current, int total, DownloadData* data, 
                (data->total) / (1024.0 * 1024.0));
         printf("\x1b[11;1HPercentage: %.1f%%", 
                (data->downloaded * 100.0) / data->total);
+        
+        // Add graphical progress bar on bottom screen if GUI is enabled
+        if (g_use_gui) {
+            gui_begin_frame(&g_gui);
+            
+            C2D_SceneBegin(g_gui.bottom_screen);
+            float progress = (float)data->downloaded / (float)data->total;
+            gui_draw_download_progress(progress, data->downloaded, data->total);
+            
+            gui_end_frame(&g_gui);
+        }
     }
     printf("\x1b[13;1HPress B to cancel");
     
@@ -583,6 +599,13 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 int main(int argc, char** argv) {
     gfxInitDefault();
     consoleInit(GFX_TOP, NULL);
+    
+    // Initialize hybrid GUI
+    g_use_gui = gui_init(&g_gui);
+    if (!g_use_gui) {
+        printf("Warning: GUI initialization failed\n");
+        printf("Falling back to console-only mode\n");
+    }
     
     // Initialize networking
     Result ret = 0;
@@ -987,6 +1010,10 @@ exit_loop:
     curl_global_cleanup();
     socExit();
     free(socMemory);
+    
+    if (g_use_gui) {
+        gui_cleanup(&g_gui);
+    }
     
 cleanup:
     gfxExit();

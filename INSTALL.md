@@ -17,7 +17,7 @@ pacman -S 3ds-dev
 
 3. Install required libraries:
 ```bash
-sudo dkp-pacman -S 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-zlib
+sudo dkp-pacman -S 3ds-curl 3ds-libarchive 3ds-mbedtls 3ds-zlib 3ds-citro3d 3ds-citro2d
 ```
 
 ### Setting Environment Variables

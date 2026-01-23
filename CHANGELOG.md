@@ -2,6 +2,27 @@
 
 All notable changes to the 3DS Zip Extractor project will be documented in this file.
 
+## [1.4.0] - 2026-01-23
+
+### Added
+- **Hybrid GUI System**: Console text combined with graphical progress bars
+  - citro2d integration for 2D graphics rendering
+  - Graphical progress bars on bottom screen during downloads
+  - Animated extraction progress indicator
+  - Fallback to console-only mode if GUI initialization fails
+- Color-coded UI elements for better visual feedback
+- Smooth progress bar animations
+
+### Changed
+- Download progress now shows graphical bar on bottom screen
+- Extract progress displays animated indicator
+- Enhanced visual feedback while maintaining text information
+
+### Improved
+- More user-friendly interface with visual progress
+- Better feedback during long operations
+- Modern appearance while keeping console stability
+
 ## [1.3.0] - 2026-01-23
 
 ### Added
@@ -181,6 +202,7 @@ Contributions are welcome! Please feel free to submit pull requests for:
 
 ## Version History
 
+- **1.4.0** (2026-01-23): Added hybrid GUI with graphical progress bars
 - **1.3.0** (2026-01-23): Added file browser and enhanced Google Drive support
 - **1.2.0** (2026-01-23): Added enhanced configuration and queue management
 - **1.1.0** (2026-01-23): Added configuration file support and multiple downloads
