@@ -52,7 +52,7 @@ The output will be `3ds-zip-extractor.3dsx`
 
 ### Setting the Download URL
 
-Before building, edit `source/main.c` and change the `download_url` variable on line 337:
+Before building, edit `source/main.c` and change the `download_url` variable on line 311:
 
 ```c
 // Example URL - user should modify this
@@ -118,6 +118,18 @@ The downloaded file may be corrupted or not a valid archive format. Try download
 
 ### "Extraction failed"
 Check that you have enough free space on your SD card and that the archive is not corrupted.
+
+## Security Notes
+
+### SSL/TLS Certificate Verification
+
+The application disables SSL certificate verification for HTTPS connections. This is a common practice for 3DS homebrew due to the platform's limitations with certificate stores. However, this means:
+
+- Connections may be vulnerable to man-in-the-middle attacks
+- For security-sensitive downloads, verify file integrity after download
+- Consider using trusted networks when downloading sensitive files
+
+This trade-off is necessary for broad HTTPS compatibility on the 3DS platform.
 
 ## Development
 

@@ -74,7 +74,8 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
     }
     
     // Not a Google Drive URL or couldn't parse, use original
-    strncpy(output_url, input_url, output_size);
+    strncpy(output_url, input_url, output_size - 1);
+    output_url[output_size - 1] = '\0';
 }
 
 // Callback for writing downloaded data
@@ -163,6 +164,8 @@ static Result download_file(const char* url, const char* output_path, bool* canc
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &data);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    // Note: SSL verification is disabled due to certificate store limitations on 3DS
+    // This is a known trade-off for 3DS homebrew applications
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "3DS-Zip-Extractor/1.0");
@@ -228,6 +231,7 @@ static Result extract_archive(const char* archive_path, const char* output_dir) 
         archive_entry_set_pathname(entry, full_path);
         
         strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
+        extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
         extract_data.current_size = archive_entry_size(entry);
         
         // Update display

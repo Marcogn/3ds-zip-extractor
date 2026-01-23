@@ -54,7 +54,7 @@ Example:
 
 ## Configuring in main.c
 
-Replace line 337 in `source/main.c`:
+Replace line 311 in `source/main.c`:
 
 ```c
 // For direct URL:

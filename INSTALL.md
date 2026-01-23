@@ -41,7 +41,7 @@ cd 3ds-zip-extractor
 ```
 
 2. **Set your download URL:**
-Edit `source/main.c` around line 337:
+Edit `source/main.c` around line 311:
 ```c
 const char* download_url = "https://your-url-here.com/file.zip";
 ```
