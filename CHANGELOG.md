@@ -2,6 +2,29 @@
 
 All notable changes to the 3DS Zip Extractor project will be documented in this file.
 
+## [1.1.0] - 2026-01-23
+
+### Added
+- **Configuration file support**: URLs are now read from `sdmc:/3ds/zip-extractor/urls.txt`
+- **Multiple downloads**: Support for downloading and extracting multiple files sequentially
+- **URL preview**: Press X to view all configured URLs before starting
+- **Batch statistics**: Shows summary with successful/failed counts and total files extracted
+- **Comment support**: Lines starting with # in urls.txt are treated as comments
+- **Empty line handling**: Empty lines in urls.txt are automatically skipped
+- Support for up to 50 URLs in configuration file
+
+### Changed
+- URLs are no longer hardcoded in source code
+- Configuration is now user-friendly via text file
+- UI updated to show "file X of Y" during processing
+- Download progress display separated into its own function
+- Main loop refactored to support batch processing
+
+### Improved
+- Better user experience with configuration file approach
+- No need to recompile when changing URLs
+- Easier to manage multiple downloads
+
 ## [1.0.0] - 2026-01-23
 
 ### Initial Release
@@ -64,24 +87,25 @@ All notable changes to the 3DS Zip Extractor project will be documented in this 
 ## Future Enhancements (Potential)
 
 ### Planned Features
-- [ ] URL input via software keyboard instead of hardcoding
-- [ ] Configuration file support for URLs and settings
-- [ ] Download queue for multiple files
+- [ ] Software keyboard for adding URLs directly from the app
+- [ ] Edit configuration file from within the app
+- [ ] Download queue management (pause, resume, reorder)
 - [ ] File browser to select extract location
 - [ ] Better error messages with troubleshooting hints
-- [ ] Download history
+- [ ] Download history and retry failed downloads
 - [ ] Bandwidth limiting option
 - [ ] Proxy support
 - [ ] Authentication support for protected files
 - [ ] Archive listing before extraction (preview)
 - [ ] Selective file extraction from archives
 - [ ] Multiple extract format support (extract to same name, numbered folders, etc.)
+- [ ] Parallel downloads (multiple files at once)
 
 ### Known Limitations
-- URL must be hardcoded in source before compilation
+- Sequential processing only (one file at a time)
+- Maximum 50 URLs in configuration file
 - No GUI, console-based interface only
 - Google Drive large files (>100MB) may require additional handling for virus scan page
-- Single download/extraction at a time
 - No background operation support
 
 ## Contributing
@@ -95,4 +119,5 @@ Contributions are welcome! Please feel free to submit pull requests for:
 
 ## Version History
 
+- **1.1.0** (2026-01-23): Added configuration file support and multiple downloads
 - **1.0.0** (2026-01-23): Initial release with core functionality

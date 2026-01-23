@@ -1,0 +1,20 @@
+# 3DS Zip Extractor - URL Configuration File
+# 
+# Add one URL per line. The application will download and extract each file in order.
+# Lines starting with # are comments and will be ignored.
+# Empty lines are also ignored.
+
+# Example: Direct download URLs
+# https://example.com/archive1.zip
+# https://example.com/archive2.tar.gz
+
+# Example: Google Drive URLs
+# https://drive.google.com/file/d/1ABC_YOUR_FILE_ID_XYZ/view
+# https://drive.google.com/open?id=1DEF_ANOTHER_FILE_ID_123
+
+# Example: Test URLs (small files for testing)
+# https://speedtest.tele2.net/1MB.zip
+# https://speedtest.tele2.net/5MB.zip
+
+# Add your URLs below (remove the # to uncomment):
+# https://your-url-here.com/file.zip

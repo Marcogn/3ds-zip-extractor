@@ -34,27 +34,42 @@ Add these to your `~/.bashrc` or `~/.zshrc` to make them permanent.
 
 ## Quick Start
 
-1. **Clone and configure:**
+1. **Clone and build:**
 ```bash
 git clone https://github.com/Marcogn/3ds-zip-extractor.git
 cd 3ds-zip-extractor
-```
-
-2. **Set your download URL:**
-Edit `source/main.c` around line 315:
-```c
-const char* download_url = "https://your-url-here.com/file.zip";
-```
-
-3. **Build:**
-```bash
 make
 ```
 
-4. **Deploy to 3DS:**
-Copy `3ds-zip-extractor.3dsx` to your SD card's `/3ds/` folder.
+2. **Prepare SD card:**
+```bash
+# Copy the application
+cp 3ds-zip-extractor.3dsx /path/to/sd/card/3ds/
+
+# Copy the URL config file
+mkdir -p /path/to/sd/card/3ds/zip-extractor/
+cp urls.txt /path/to/sd/card/3ds/zip-extractor/
+```
+
+3. **Configure URLs:**
+Edit `/3ds/zip-extractor/urls.txt` on your SD card and add your download URLs (one per line).
+
+4. **Run on 3DS:**
+Launch the application from Homebrew Launcher.
 
 ## Configuration Options
+
+### URLs Configuration File
+
+The application reads URLs from: `sdmc:/3ds/zip-extractor/urls.txt`
+
+Format:
+```
+# Comment lines start with #
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+https://drive.google.com/file/d/FILE_ID/view
+```
 
 ### Custom Extract Path
 

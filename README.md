@@ -5,11 +5,14 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 ## Features
 
 - **Download from URLs**: Download compressed files from any HTTP/HTTPS URL
+- **Multiple Downloads**: Support for downloading and extracting multiple files sequentially
+- **Configuration File**: URLs are read from a text file (one per line)
 - **Google Drive Support**: Automatically converts Google Drive URLs to direct download links
 - **Multiple Archive Formats**: Supports ZIP, TAR, 7Z, and many other formats via libarchive
 - **Resume Support**: Automatically resumes interrupted downloads
 - **Large File Handling**: Efficient streaming for large files
 - **Progress Tracking**: Real-time download and extraction progress display
+- **Batch Summary**: Shows statistics after processing all files
 - **Configurable Output**: Extract to default or custom directory
 
 ## Requirements
@@ -50,19 +53,30 @@ The output will be `3ds-zip-extractor.3dsx`
 
 ## Usage
 
-### Setting the Download URL
+### Setting Up URLs
 
-Before building, edit `source/main.c` and change the `download_url` variable on line 315:
+1. Copy `urls.txt` to your SD card at: `sdmc:/3ds/zip-extractor/urls.txt`
 
-```c
-// Example URL - user should modify this
-const char* download_url = "https://example.com/file.zip";
+2. Edit the file and add your download URLs (one per line):
+
+```
+# Comments start with #
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+https://drive.google.com/file/d/FILE_ID/view
 ```
 
-You can use:
-- Direct HTTP/HTTPS URLs: `http://example.com/file.zip`
-- Google Drive share links: `https://drive.google.com/file/d/FILE_ID/view`
-- Google Drive open links: `https://drive.google.com/open?id=FILE_ID`
+### Supported URL Formats
+
+**Direct URLs:**
+```
+https://example.com/archive.zip
+http://server.com/file.tar.gz
+```
+
+**Google Drive URLs:**
+- `https://drive.google.com/file/d/FILE_ID/view`
+- `https://drive.google.com/open?id=FILE_ID`
 
 ### Configuring Extract Path
 
@@ -74,13 +88,43 @@ By default, files are extracted to `sdmc:/extracted/`. To change this, modify th
 
 ### Running the Application
 
-1. Copy `3ds-zip-extractor.3dsx` to your SD card's `/3ds/` folder
-2. Launch via Homebrew Launcher
-3. Press **A** to start download and extraction
-4. Press **B** to cancel during download or extraction
-5. Press **START** to exit
+1. Build the application: `make`
+2. Copy `3ds-zip-extractor.3dsx` to your SD card's `/3ds/` folder
+3. Copy `urls.txt` to `/3ds/zip-extractor/urls.txt` on your SD card
+4. Edit `urls.txt` to add your download URLs
+5. Launch via Homebrew Launcher
+6. Press **X** to view configured URLs
+7. Press **A** to start downloading and extracting all files
+8. Press **B** to cancel during download or extraction
+9. Press **START** to exit
 
 ## Features Detail
+
+### Multiple File Downloads
+
+The application can process multiple URLs sequentially. Simply add each URL on a new line in the `urls.txt` file. The application will:
+1. Download each file in order
+2. Extract each archive after download
+3. Show progress for each file
+4. Display a summary at the end with success/failure counts
+
+### Configuration File Format
+
+The `urls.txt` file supports:
+- One URL per line
+- Comments (lines starting with #)
+- Empty lines (ignored)
+- Up to 50 URLs
+
+Example:
+```
+# My downloads
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+
+# More files
+https://example.com/file3.7z
+```
 
 ### Download Resumption
 

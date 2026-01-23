@@ -1,4 +1,35 @@
-# Example URLs for Testing
+# Example URLs and Configuration
+
+## Creating Your urls.txt File
+
+Create a file at `sdmc:/3ds/zip-extractor/urls.txt` on your SD card with your URLs.
+
+### Basic Example
+
+```
+# Simple URL list
+https://speedtest.tele2.net/1MB.zip
+https://speedtest.tele2.net/5MB.zip
+```
+
+### Multiple Downloads Example
+
+```
+# Download multiple archives
+https://example.com/game-data.zip
+https://example.com/game-assets.tar.gz
+https://example.com/game-music.7z
+```
+
+### Mixed Sources Example
+
+```
+# Mix of direct URLs and Google Drive
+https://example.com/file1.zip
+https://drive.google.com/file/d/1ABC_FILE_ID_XYZ/view
+https://example.com/file2.tar.gz
+https://drive.google.com/open?id=1DEF_FILE_ID_123
+```
 
 ## Direct Download URLs
 
@@ -52,35 +83,50 @@ Example:
 - Full URL: `https://drive.google.com/file/d/1a2B3c4D5e6F7g8H9i0J/view?usp=sharing`
 - File ID: `1a2B3c4D5e6F7g8H9i0J`
 
-## Configuring in main.c
+## Configuring Your SD Card
 
-Replace line 315 in `source/main.c`:
-
-```c
-// For direct URL:
-const char* download_url = "https://speedtest.tele2.net/10MB.zip";
-
-// For Google Drive:
-const char* download_url = "https://drive.google.com/file/d/YOUR_FILE_ID/view";
+1. **Create the directory structure:**
 ```
+SD Card
+└── 3ds/
+    ├── 3ds-zip-extractor.3dsx
+    └── zip-extractor/
+        └── urls.txt
+```
+
+2. **Edit urls.txt with your URLs:**
+```
+# My downloads
+https://speedtest.tele2.net/1MB.zip
+https://speedtest.tele2.net/5MB.zip
+```
+
+3. **Launch the app** and press A to start all downloads.
 
 ## Testing Your Setup
 
-1. Start with a small file to test the setup:
-```c
-const char* download_url = "https://speedtest.tele2.net/1MB.zip";
+1. **Start with a small file:**
+Create `urls.txt` with:
+```
+https://speedtest.tele2.net/1MB.zip
 ```
 
-2. Once working, try a larger file:
-```c
-const char* download_url = "https://speedtest.tele2.net/10MB.zip";
+2. **Test multiple downloads:**
+Update `urls.txt` with:
+```
+https://speedtest.tele2.net/1MB.zip
+https://speedtest.tele2.net/5MB.zip
 ```
 
-3. Finally, use your target file URL
+3. **Finally, use your target files**
 
 ## Notes
 
+- Each URL is processed sequentially (one at a time)
+- The app will show progress for each download
+- At the end, a summary shows successful vs failed downloads
 - For Google Drive files larger than 100MB, you may encounter a virus scan warning. The application will attempt to handle this automatically.
 - Make sure the file is publicly accessible if using Google Drive
 - Test your internet connection on the 3DS before attempting large downloads
 - The application will create the extract directory automatically if it doesn't exist
+- You can add up to 50 URLs in the configuration file

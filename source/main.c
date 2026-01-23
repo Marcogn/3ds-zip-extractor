@@ -10,6 +10,9 @@
 #define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
 #define DEFAULT_EXTRACT_PATH "sdmc:/extracted/"
 #define TEMP_DOWNLOAD_PATH "sdmc:/temp_download.tmp"
+#define CONFIG_FILE_PATH "sdmc:/3ds/zip-extractor/urls.txt"
+#define MAX_URLS 50
+#define MAX_URL_LENGTH 512
 
 typedef struct {
     FILE* file;
@@ -24,7 +27,45 @@ typedef struct {
     char current_file[256];
 } ExtractData;
 
+typedef struct {
+    char urls[MAX_URLS][MAX_URL_LENGTH];
+    int count;
+} UrlList;
+
 static ExtractData extract_data = {0};
+
+// Function to read URLs from configuration file
+static int read_urls_from_file(const char* file_path, UrlList* url_list) {
+    FILE* file = fopen(file_path, "r");
+    if (!file) {
+        return -1;
+    }
+    
+    url_list->count = 0;
+    char line[MAX_URL_LENGTH];
+    
+    while (fgets(line, sizeof(line), file) != NULL && url_list->count < MAX_URLS) {
+        // Remove trailing newline and carriage return
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[len-1] = '\0';
+            len--;
+        }
+        
+        // Skip empty lines and comments (lines starting with #)
+        if (len == 0 || line[0] == '#') {
+            continue;
+        }
+        
+        // Copy URL to list
+        strncpy(url_list->urls[url_list->count], line, MAX_URL_LENGTH - 1);
+        url_list->urls[url_list->count][MAX_URL_LENGTH - 1] = '\0';
+        url_list->count++;
+    }
+    
+    fclose(file);
+    return url_list->count;
+}
 
 // Function to convert Google Drive URLs to direct download links
 static void convert_gdrive_url(const char* input_url, char* output_url, size_t output_size) {
@@ -96,22 +137,6 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     
     if (dltotal > 0) {
         data->total = dltotal;
-        
-        // Update display
-        consoleClear();
-        printf("\x1b[2;1HZip Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HDownloading...");
-        printf("\x1b[8;1HProgress: %.2f MB / %.2f MB", 
-               (data->downloaded + dlnow) / (1024.0 * 1024.0),
-               (data->downloaded + dltotal) / (1024.0 * 1024.0));
-        printf("\x1b[9;1HPercentage: %.1f%%", 
-               ((data->downloaded + dlnow) * 100.0) / (data->downloaded + dltotal));
-        printf("\x1b[11;1HPress B to cancel");
-        
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
     }
     
     // Check if user wants to cancel
@@ -124,8 +149,33 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     return 0;
 }
 
+// Update download progress display
+static void update_download_display(int current, int total, DownloadData* data, const char* url) {
+    consoleClear();
+    printf("\x1b[2;1HZip Extractor for 3DS");
+    printf("\x1b[4;1H================================");
+    if (total > 1) {
+        printf("\x1b[6;1HDownloading file %d of %d", current, total);
+    } else {
+        printf("\x1b[6;1HDownloading...");
+    }
+    printf("\x1b[8;1HURL: %.45s", url);
+    if (data->total > 0) {
+        printf("\x1b[10;1HProgress: %.2f MB / %.2f MB", 
+               (data->downloaded) / (1024.0 * 1024.0),
+               (data->downloaded + data->total) / (1024.0 * 1024.0));
+        printf("\x1b[11;1HPercentage: %.1f%%", 
+               (data->downloaded * 100.0) / (data->downloaded + data->total));
+    }
+    printf("\x1b[13;1HPress B to cancel");
+    
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
+}
+
 // Download file with resume support
-static Result download_file(const char* url, const char* output_path, bool* cancelled) {
+static Result download_file(const char* url, const char* output_path, bool* cancelled, int current, int total) {
     CURL* curl;
     CURLcode res;
     DownloadData data = {0};
@@ -164,6 +214,7 @@ static Result download_file(const char* url, const char* output_path, bool* canc
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &data);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, DOWNLOAD_BUFFER_SIZE);
     // Note: SSL verification is disabled due to certificate store limitations on 3DS
     // This is a known trade-off for 3DS homebrew applications
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
@@ -175,7 +226,16 @@ static Result download_file(const char* url, const char* output_path, bool* canc
         curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)data.downloaded);
     }
     
+    // Initial display update
+    update_download_display(current, total, &data, converted_url);
+    
+    // Perform download with periodic display updates
     res = curl_easy_perform(curl);
+    
+    // Final display update
+    if (res == CURLE_OK) {
+        update_download_display(current, total, &data, converted_url);
+    }
     
     curl_easy_cleanup(curl);
     fclose(data.file);
@@ -194,7 +254,7 @@ static Result download_file(const char* url, const char* output_path, bool* canc
 }
 
 // Extract archive with progress tracking
-static Result extract_archive(const char* archive_path, const char* output_dir) {
+static Result extract_archive(const char* archive_path, const char* output_dir, int current, int total) {
     struct archive* a;
     struct archive* ext;
     struct archive_entry* entry;
@@ -238,10 +298,15 @@ static Result extract_archive(const char* archive_path, const char* output_dir) 
         consoleClear();
         printf("\x1b[2;1HZip Extractor for 3DS");
         printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HExtracting...");
+        if (total > 1) {
+            printf("\x1b[6;1HExtracting archive %d of %d", current, total);
+        } else {
+            printf("\x1b[6;1HExtracting...");
+        }
         printf("\x1b[8;1HFiles extracted: %llu", extract_data.extracted_files);
         printf("\x1b[10;1HCurrent file:");
         printf("\x1b[11;1H%.40s", extract_data.current_file);
+        printf("\x1b[13;1HPress B to cancel");
         
         gfxFlushBuffers();
         gfxSwapBuffers();
@@ -300,23 +365,42 @@ int main(int argc, char** argv) {
     // Initialize curl
     curl_global_init(CURL_GLOBAL_ALL);
     
+    const char* extract_path = DEFAULT_EXTRACT_PATH;
+    UrlList url_list = {0};
+    
+    // Create config directory if it doesn't exist
+    mkdir("sdmc:/3ds", 0777);
+    mkdir("sdmc:/3ds/zip-extractor", 0777);
+    
+    // Try to read URLs from config file
+    int url_count = read_urls_from_file(CONFIG_FILE_PATH, &url_list);
+    
     printf("\x1b[2;1HZip Extractor for 3DS");
     printf("\x1b[4;1H================================");
-    printf("\x1b[6;1HReady to download and extract");
-    printf("\x1b[8;1HUsage:");
-    printf("\x1b[9;1H  Edit source code to set URL");
-    printf("\x1b[10;1H  Recompile with your URL");
-    printf("\x1b[12;1HDefault extract path:");
-    printf("\x1b[13;1H  %s", DEFAULT_EXTRACT_PATH);
-    printf("\x1b[16;1HPress A to start");
-    printf("\x1b[17;1HPress START to exit");
     
-    // Example URL - user should modify this
-    const char* download_url = "https://example.com/file.zip";
-    const char* extract_path = DEFAULT_EXTRACT_PATH;
+    if (url_count > 0) {
+        printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
+        printf("\x1b[8;1HConfig file:");
+        printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
+        printf("\x1b[11;1HExtract path:");
+        printf("\x1b[12;1H  %s", DEFAULT_EXTRACT_PATH);
+        printf("\x1b[14;1HPress A to start downloads");
+        printf("\x1b[15;1HPress X to view URLs");
+        printf("\x1b[16;1HPress START to exit");
+    } else {
+        printf("\x1b[6;1HNo config file found!");
+        printf("\x1b[8;1HPlease create:");
+        printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
+        printf("\x1b[11;1HAdd one URL per line");
+        printf("\x1b[12;1HExample:");
+        printf("\x1b[13;1H  https://example.com/file.zip");
+        printf("\x1b[14;1H  https://drive.google.com/...");
+        printf("\x1b[16;1HPress START to exit");
+    }
     
     bool started = false;
     bool cancelled = false;
+    bool show_urls = false;
     
     while (aptMainLoop()) {
         hidScanInput();
@@ -326,71 +410,108 @@ int main(int argc, char** argv) {
             break;
         }
         
-        if ((kDown & KEY_A) && !started) {
+        if ((kDown & KEY_X) && url_count > 0 && !started && !show_urls) {
+            show_urls = true;
+            consoleClear();
+            printf("\x1b[2;1HZip Extractor for 3DS");
+            printf("\x1b[4;1H================================");
+            printf("\x1b[6;1HURLs to download (%d):", url_count);
+            
+            int display_count = (url_count > 8) ? 8 : url_count;
+            for (int i = 0; i < display_count; i++) {
+                printf("\x1b[%d;1H%d. %.42s", 8 + i, i + 1, url_list.urls[i]);
+            }
+            if (url_count > 8) {
+                printf("\x1b[17;1H... and %d more", url_count - 8);
+            }
+            printf("\x1b[19;1HPress B to go back");
+        }
+        
+        if ((kDown & KEY_B) && show_urls) {
+            show_urls = false;
+            consoleClear();
+            printf("\x1b[2;1HZip Extractor for 3DS");
+            printf("\x1b[4;1H================================");
+            printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
+            printf("\x1b[8;1HConfig file:");
+            printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
+            printf("\x1b[11;1HExtract path:");
+            printf("\x1b[12;1H  %s", DEFAULT_EXTRACT_PATH);
+            printf("\x1b[14;1HPress A to start downloads");
+            printf("\x1b[15;1HPress X to view URLs");
+            printf("\x1b[16;1HPress START to exit");
+        }
+        
+        if ((kDown & KEY_A) && url_count > 0 && !started && !show_urls) {
             started = true;
             
             // Create extract directory
             mkdir("sdmc:/extracted", 0777);
             
+            int successful = 0;
+            int failed = 0;
+            u64 total_files_extracted = 0;
+            
+            // Process each URL
+            for (int i = 0; i < url_count && !cancelled; i++) {
+                consoleClear();
+                printf("\x1b[2;1HZip Extractor for 3DS");
+                printf("\x1b[4;1H================================");
+                printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
+                printf("\x1b[8;1HStarting download...");
+                
+                gfxFlushBuffers();
+                gfxSwapBuffers();
+                gspWaitForVBlank();
+                
+                // Download file
+                Result download_result = download_file(url_list.urls[i], TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
+                
+                if (cancelled) {
+                    break;
+                }
+                
+                if (download_result == 0) {
+                    // Extract archive
+                    Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
+                    
+                    if (extract_result == 0) {
+                        successful++;
+                        total_files_extracted += extract_data.extracted_files;
+                    } else if (extract_result == -2) {
+                        cancelled = true;
+                        break;
+                    } else {
+                        failed++;
+                    }
+                    
+                    // Clean up temp file
+                    remove(TEMP_DOWNLOAD_PATH);
+                } else {
+                    failed++;
+                }
+            }
+            
+            // Show summary
             consoleClear();
             printf("\x1b[2;1HZip Extractor for 3DS");
             printf("\x1b[4;1H================================");
-            printf("\x1b[6;1HStarting download...");
-            printf("\x1b[8;1HURL: %s", download_url);
-            
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
-            
-            // Download file
-            Result download_result = download_file(download_url, TEMP_DOWNLOAD_PATH, &cancelled);
             
             if (cancelled) {
-                consoleClear();
-                printf("\x1b[2;1HZip Extractor for 3DS");
-                printf("\x1b[4;1H================================");
-                printf("\x1b[6;1HDownload cancelled");
-                printf("\x1b[8;1HPress START to exit");
-                started = false;
-                remove(TEMP_DOWNLOAD_PATH);
-            } else if (download_result == 0) {
-                // Extract archive
-                Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path);
-                
-                if (extract_result == 0) {
-                    consoleClear();
-                    printf("\x1b[2;1HZip Extractor for 3DS");
-                    printf("\x1b[4;1H================================");
-                    printf("\x1b[6;1HExtraction complete!");
-                    printf("\x1b[8;1HFiles extracted: %llu", extract_data.extracted_files);
-                    printf("\x1b[10;1HOutput directory:");
-                    printf("\x1b[11;1H  %s", extract_path);
-                    printf("\x1b[14;1HPress START to exit");
-                } else if (extract_result == -2) {
-                    consoleClear();
-                    printf("\x1b[2;1HZip Extractor for 3DS");
-                    printf("\x1b[4;1H================================");
-                    printf("\x1b[6;1HExtraction cancelled");
-                    printf("\x1b[8;1HPress START to exit");
-                } else {
-                    consoleClear();
-                    printf("\x1b[2;1HZip Extractor for 3DS");
-                    printf("\x1b[4;1H================================");
-                    printf("\x1b[6;1HExtraction failed");
-                    printf("\x1b[8;1HPress START to exit");
-                }
-                
-                // Clean up temp file
-                remove(TEMP_DOWNLOAD_PATH);
-                started = false;
+                printf("\x1b[6;1HOperation cancelled!");
             } else {
-                consoleClear();
-                printf("\x1b[2;1HZip Extractor for 3DS");
-                printf("\x1b[4;1H================================");
-                printf("\x1b[6;1HDownload failed");
-                printf("\x1b[8;1HPress START to exit");
-                started = false;
+                printf("\x1b[6;1HAll downloads complete!");
             }
+            
+            printf("\x1b[8;1HSummary:");
+            printf("\x1b[9;1H  Successful: %d", successful);
+            printf("\x1b[10;1H  Failed: %d", failed);
+            printf("\x1b[11;1H  Total files extracted: %llu", total_files_extracted);
+            printf("\x1b[13;1HOutput directory:");
+            printf("\x1b[14;1H  %s", extract_path);
+            printf("\x1b[17;1HPress START to exit");
+            
+            started = false;
         }
         
         gfxFlushBuffers();
