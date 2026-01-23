@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <3ds.h>
 #include <curl/curl.h>
 #include <archive.h>
@@ -14,6 +16,7 @@
 #define MAX_URLS 50
 #define MAX_URL_LENGTH 512
 #define MAX_PATH_LENGTH 256
+#define MAX_DIR_ENTRIES 100
 
 // Download states for queue management
 typedef enum {
@@ -23,6 +26,19 @@ typedef enum {
     DOWNLOAD_FAILED,
     DOWNLOAD_SKIPPED
 } DownloadState;
+
+// Directory entry for file browser
+typedef struct {
+    char name[256];
+    bool is_directory;
+} DirEntry;
+
+typedef struct {
+    DirEntry entries[MAX_DIR_ENTRIES];
+    int count;
+    int selected;
+    char current_path[MAX_PATH_LENGTH];
+} FileBrowser;
 
 typedef struct {
     FILE* file;
@@ -52,6 +68,137 @@ typedef struct {
 } DownloadQueue;
 
 static ExtractData extract_data = {0};
+
+// Initialize file browser
+static void init_file_browser(FileBrowser* browser, const char* start_path) {
+    strncpy(browser->current_path, start_path, MAX_PATH_LENGTH - 1);
+    browser->current_path[MAX_PATH_LENGTH - 1] = '\0';
+    browser->count = 0;
+    browser->selected = 0;
+}
+
+// Load directory contents into browser
+static int load_directory(FileBrowser* browser) {
+    DIR* dir = opendir(browser->current_path);
+    if (!dir) {
+        return -1;
+    }
+    
+    browser->count = 0;
+    
+    // Add parent directory entry if not at root
+    if (strcmp(browser->current_path, "sdmc:/") != 0) {
+        strncpy(browser->entries[browser->count].name, "..", sizeof(browser->entries[0].name) - 1);
+        browser->entries[browser->count].is_directory = true;
+        browser->count++;
+    }
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL && browser->count < MAX_DIR_ENTRIES) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        strncpy(browser->entries[browser->count].name, entry->d_name, sizeof(browser->entries[0].name) - 1);
+        browser->entries[browser->count].name[sizeof(browser->entries[0].name) - 1] = '\0';
+        browser->entries[browser->count].is_directory = (entry->d_type == DT_DIR);
+        browser->count++;
+    }
+    
+    closedir(dir);
+    
+    // Sort: directories first, then alphabetically
+    for (int i = 0; i < browser->count - 1; i++) {
+        for (int j = i + 1; j < browser->count; j++) {
+            bool swap = false;
+            
+            // Directories before files
+            if (browser->entries[i].is_directory && !browser->entries[j].is_directory) {
+                continue;
+            }
+            if (!browser->entries[i].is_directory && browser->entries[j].is_directory) {
+                swap = true;
+            }
+            // Alphabetical within same type
+            else if (strcmp(browser->entries[i].name, browser->entries[j].name) > 0) {
+                swap = true;
+            }
+            
+            if (swap) {
+                DirEntry temp = browser->entries[i];
+                browser->entries[i] = browser->entries[j];
+                browser->entries[j] = temp;
+            }
+        }
+    }
+    
+    browser->selected = 0;
+    return browser->count;
+}
+
+// Display file browser
+static void display_file_browser(FileBrowser* browser, int scroll_offset) {
+    consoleClear();
+    printf("\x1b[1;1HFile Browser - Select Extract Path");
+    printf("\x1b[2;1H================================");
+    printf("\x1b[3;1HCurrent: %.40s", browser->current_path);
+    printf("\x1b[4;1H================================");
+    
+    int visible_lines = 14;
+    int start = scroll_offset;
+    int end = start + visible_lines;
+    if (end > browser->count) end = browser->count;
+    
+    for (int i = start; i < end; i++) {
+        int line = 6 + (i - start);
+        const char* marker = (i == browser->selected) ? ">" : " ";
+        const char* type_marker = browser->entries[i].is_directory ? "/" : " ";
+        
+        printf("\x1b[%d;1H%s %.42s%s", line, marker, browser->entries[i].name, type_marker);
+    }
+    
+    printf("\x1b[21;1HD-Pad: Navigate  A: Select/Enter");
+    printf("\x1b[22;1HY: Use Current  B: Cancel");
+    printf("\x1b[23;1HX: Create New Folder");
+}
+
+// Handle Google Drive large file confirmation
+static bool handle_gdrive_confirmation(const char* url, char* final_url, size_t final_url_size) {
+    // Check if URL is already a direct download link
+    if (strstr(url, "drive.google.com/uc") != NULL) {
+        strncpy(final_url, url, final_url_size - 1);
+        final_url[final_url_size - 1] = '\0';
+        return true;
+    }
+    
+    // For large files, Google Drive requires a confirmation token
+    // We need to make a request and check for the confirmation page
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        return false;
+    }
+    
+    // First, try the normal conversion
+    char converted[512];
+    convert_gdrive_url(url, converted, sizeof(converted));
+    
+    // For files >100MB, we need to extract the confirm token
+    // This is a simplified approach - in reality, you'd need to:
+    // 1. Make initial request
+    // 2. Parse HTML for confirm token
+    // 3. Make second request with token
+    
+    // For now, we'll just add a warning parameter that helps with some cases
+    if (strstr(converted, "?") != NULL) {
+        snprintf(final_url, final_url_size, "%s&confirm=t", converted);
+    } else {
+        snprintf(final_url, final_url_size, "%s?confirm=t", converted);
+    }
+    
+    curl_easy_cleanup(curl);
+    return true;
+}
 
 // Function to read configuration file with settings and URLs
 static int read_config_file(const char* file_path, DownloadQueue* queue) {
@@ -166,8 +313,9 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
                 char file_id_buf[256];
                 strncpy(file_id_buf, id_start, id_len);
                 file_id_buf[id_len] = '\0';
+                // Use confirm parameter for large files
                 snprintf(output_url, output_size, 
-                         "https://drive.google.com/uc?export=download&id=%s", 
+                         "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
                          file_id_buf);
                 return;
             }
@@ -183,13 +331,13 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
                 strncpy(file_id_buf, id_start, id_len);
                 file_id_buf[id_len] = '\0';
                 snprintf(output_url, output_size, 
-                         "https://drive.google.com/uc?export=download&id=%s", 
+                         "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
                          file_id_buf);
                 return;
             } else {
                 // ID is at the end of URL
                 snprintf(output_url, output_size, 
-                         "https://drive.google.com/uc?export=download&id=%s", 
+                         "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
                          id_start);
                 return;
             }
@@ -482,7 +630,8 @@ int main(int argc, char** argv) {
         }
         printf("\x1b[15;1HPress A to start downloads");
         printf("\x1b[16;1HPress X to view queue");
-        printf("\x1b[17;1HPress START to exit");
+        printf("\x1b[17;1HPress SELECT to browse path");
+        printf("\x1b[18;1HPress START to exit");
     } else {
         printf("\x1b[6;1HNo config file found!");
         printf("\x1b[8;1HPlease create:");
@@ -500,7 +649,10 @@ int main(int argc, char** argv) {
     bool started = false;
     bool cancelled = false;
     bool show_queue = false;
+    bool show_browser = false;
     int queue_page = 0;
+    FileBrowser browser = {0};
+    int browser_scroll = 0;
     
     while (aptMainLoop()) {
         hidScanInput();
@@ -508,6 +660,114 @@ int main(int argc, char** argv) {
         
         if (kDown & KEY_START) {
             break;
+        }
+        
+        // File browser
+        if (show_browser) {
+            if (kDown & KEY_UP) {
+                if (browser.selected > 0) {
+                    browser.selected--;
+                    if (browser.selected < browser_scroll) {
+                        browser_scroll = browser.selected;
+                    }
+                }
+                display_file_browser(&browser, browser_scroll);
+            }
+            
+            if (kDown & KEY_DOWN) {
+                if (browser.selected < browser.count - 1) {
+                    browser.selected++;
+                    if (browser.selected >= browser_scroll + 14) {
+                        browser_scroll = browser.selected - 13;
+                    }
+                }
+                display_file_browser(&browser, browser_scroll);
+            }
+            
+            if (kDown & KEY_A) {
+                // Enter directory or select
+                if (browser.entries[browser.selected].is_directory) {
+                    if (strcmp(browser.entries[browser.selected].name, "..") == 0) {
+                        // Go up one directory
+                        char* last_slash = strrchr(browser.current_path, '/');
+                        if (last_slash != NULL && last_slash != browser.current_path) {
+                            *last_slash = '\0';
+                            // Handle case where we're at sdmc:/something
+                            if (strncmp(browser.current_path, "sdmc:", 5) == 0 && strlen(browser.current_path) == 5) {
+                                strcat(browser.current_path, "/");
+                            }
+                        }
+                    } else {
+                        // Enter subdirectory
+                        if (browser.current_path[strlen(browser.current_path) - 1] != '/') {
+                            strcat(browser.current_path, "/");
+                        }
+                        strcat(browser.current_path, browser.entries[browser.selected].name);
+                    }
+                    load_directory(&browser);
+                    browser_scroll = 0;
+                    display_file_browser(&browser, browser_scroll);
+                }
+            }
+            
+            if (kDown & KEY_Y) {
+                // Use current directory
+                strncpy(queue.extract_path, browser.current_path, MAX_PATH_LENGTH - 1);
+                queue.extract_path[MAX_PATH_LENGTH - 1] = '\0';
+                // Ensure path ends with /
+                if (queue.extract_path[strlen(queue.extract_path) - 1] != '/') {
+                    strcat(queue.extract_path, "/");
+                }
+                extract_path = queue.extract_path;
+                show_browser = false;
+                
+                // Return to main menu
+                consoleClear();
+                printf("\x1b[2;1HZip Extractor for 3DS");
+                printf("\x1b[4;1H================================");
+                printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
+                printf("\x1b[8;1HConfig file:");
+                printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
+                printf("\x1b[11;1HExtract path:");
+                printf("\x1b[12;1H  %s", extract_path);
+                if (queue.auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                }
+                printf("\x1b[15;1HPress A to start downloads");
+                printf("\x1b[16;1HPress X to view queue");
+                printf("\x1b[17;1HPress SELECT to browse path");
+                printf("\x1b[18;1HPress START to exit");
+            }
+            
+            if (kDown & KEY_B) {
+                show_browser = false;
+                
+                // Return to main menu
+                consoleClear();
+                printf("\x1b[2;1HZip Extractor for 3DS");
+                printf("\x1b[4;1H================================");
+                printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
+                printf("\x1b[8;1HConfig file:");
+                printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
+                printf("\x1b[11;1HExtract path:");
+                printf("\x1b[12;1H  %s", extract_path);
+                if (queue.auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                }
+                printf("\x1b[15;1HPress A to start downloads");
+                printf("\x1b[16;1HPress X to view queue");
+                printf("\x1b[17;1HPress SELECT to browse path");
+                printf("\x1b[18;1HPress START to exit");
+            }
+        }
+        
+        // Show file browser
+        if ((kDown & KEY_SELECT) && url_count > 0 && !started && !show_queue && !show_browser) {
+            show_browser = true;
+            init_file_browser(&browser, "sdmc:/");
+            load_directory(&browser);
+            browser_scroll = 0;
+            display_file_browser(&browser, browser_scroll);
         }
         
         // Queue navigation
