@@ -43,6 +43,7 @@ GRAPHICS	:=	gfx
 APP_TITLE	:=	Zip Extractor
 APP_DESCRIPTION	:=	Download and extract compressed files
 APP_AUTHOR	:=	Marcogn
+ICON		:=	icon.png
 
 #---------------------------------------------------------------------------------
 # options for code generation

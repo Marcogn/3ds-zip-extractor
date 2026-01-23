@@ -1,6 +1,20 @@
 # 3DS Zip Extractor
 
-A homebrew application for New Nintendo 3DS that downloads and extracts compressed files from web URLs, including Google Drive.
+<p align="center">
+  <img src="icon.png" alt="3DS Zip Extractor Icon" width="96" height="96">
+</p>
+
+<p align="center">
+  <strong>A homebrew application for New Nintendo 3DS that downloads and extracts compressed files from web URLs</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Marcogn/3ds-zip-extractor/releases"><img src="https://img.shields.io/github/v/release/Marcogn/3ds-zip-extractor?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/Marcogn/3ds-zip-extractor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Marcogn/3ds-zip-extractor?style=flat-square" alt="License"></a>
+  <a href="https://github.com/Marcogn/3ds-zip-extractor/issues"><img src="https://img.shields.io/github/issues/Marcogn/3ds-zip-extractor?style=flat-square" alt="Issues"></a>
+</p>
+
+---
 
 > **📖 New to this project? Start with [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions in Italian and English!**
 
@@ -304,15 +318,36 @@ To add file selection:
 
 ## License
 
-This project is provided as-is for educational and personal use.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Credits
+## Contributing
 
-- Uses libctru for 3DS system functions
-- Uses libcurl for HTTP downloads
-- Uses libarchive for archive extraction
-- Uses mbedtls for SSL/TLS support
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
+- How to report issues
+- How to submit pull requests
+- Code style guidelines
+- Testing requirements
+
+## Support
+
+- **Documentation**: Check [QUICKSTART.md](QUICKSTART.md), [INSTALL.md](INSTALL.md), and [EXAMPLES.md](EXAMPLES.md)
+- **Issues**: [GitHub Issues](https://github.com/Marcogn/3ds-zip-extractor/issues)
+- **Security**: See [SECURITY.md](SECURITY.md) for security policy
+
+## Acknowledgments
+
+- **devkitPro Team** - For the excellent 3DS development toolchain
+- **libctru** - 3DS system functions
+- **libcurl** - HTTP/HTTPS downloads
+- **libarchive** - Archive extraction support
+- **mbedtls** - SSL/TLS implementation
+- **citro3d/citro2d** - Graphics rendering
 
 ## Author
 
-Marcogn
+**Marcogn**
+- GitHub: [@Marcogn](https://github.com/Marcogn)
+
+## Disclaimer
+
+This software is provided "as is", without warranty of any kind. Use at your own risk. Always backup your SD card before using homebrew applications.
