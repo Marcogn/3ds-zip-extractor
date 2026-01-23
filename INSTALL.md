@@ -46,13 +46,13 @@ make
 # Copy the application
 cp 3ds-zip-extractor.3dsx /path/to/sd/card/3ds/
 
-# Copy the URL config file
+# Copy the config file
 mkdir -p /path/to/sd/card/3ds/zip-extractor/
-cp urls.txt /path/to/sd/card/3ds/zip-extractor/
+cp config.txt /path/to/sd/card/3ds/zip-extractor/
 ```
 
-3. **Configure URLs:**
-Edit `/3ds/zip-extractor/urls.txt` on your SD card and add your download URLs (one per line).
+3. **Configure settings and URLs:**
+Edit `/3ds/zip-extractor/config.txt` on your SD card:
 
 4. **Run on 3DS:**
 Launch the application from Homebrew Launcher.

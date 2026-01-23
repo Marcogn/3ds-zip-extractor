@@ -1,13 +1,17 @@
 # Example URLs and Configuration
 
-## Creating Your urls.txt File
+## Creating Your config.txt File
 
-Create a file at `sdmc:/3ds/zip-extractor/urls.txt` on your SD card with your URLs.
+Create a file at `sdmc:/3ds/zip-extractor/config.txt` on your SD card with settings and URLs.
 
 ### Basic Example
 
 ```
-# Simple URL list
+# Settings
+extract_path=sdmc:/extracted/
+auto_retry=false
+
+# URLs
 https://speedtest.tele2.net/1MB.zip
 https://speedtest.tele2.net/5MB.zip
 ```
@@ -15,6 +19,11 @@ https://speedtest.tele2.net/5MB.zip
 ### Multiple Downloads Example
 
 ```
+# Settings
+extract_path=sdmc:/games/
+auto_retry=true
+max_retries=3
+
 # Download multiple archives
 https://example.com/game-data.zip
 https://example.com/game-assets.tar.gz
@@ -91,12 +100,17 @@ SD Card
 └── 3ds/
     ├── 3ds-zip-extractor.3dsx
     └── zip-extractor/
-        └── urls.txt
+        └── config.txt
 ```
 
-2. **Edit urls.txt with your URLs:**
+2. **Edit config.txt with your settings and URLs:**
 ```
-# My downloads
+# Settings
+extract_path=sdmc:/extracted/
+auto_retry=true
+max_retries=3
+
+# URLs
 https://speedtest.tele2.net/1MB.zip
 https://speedtest.tele2.net/5MB.zip
 ```
@@ -106,14 +120,21 @@ https://speedtest.tele2.net/5MB.zip
 ## Testing Your Setup
 
 1. **Start with a small file:**
-Create `urls.txt` with:
+Create `config.txt` with:
 ```
+extract_path=sdmc:/extracted/
+auto_retry=false
+
 https://speedtest.tele2.net/1MB.zip
 ```
 
-2. **Test multiple downloads:**
-Update `urls.txt` with:
+2. **Test multiple downloads with auto-retry:**
+Update `config.txt` with:
 ```
+extract_path=sdmc:/extracted/
+auto_retry=true
+max_retries=3
+
 https://speedtest.tele2.net/1MB.zip
 https://speedtest.tele2.net/5MB.zip
 ```

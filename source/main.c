@@ -149,39 +149,6 @@ static void display_queue_status(DownloadQueue* queue, int current_page) {
     printf("\x1b[23;1HA: Continue  B: Back  START: Exit");
 }
 
-// Function to read URLs from configuration file (legacy support)
-static int read_urls_from_file(const char* file_path, UrlList* url_list) {
-    FILE* file = fopen(file_path, "r");
-    if (!file) {
-        return -1;
-    }
-    
-    url_list->count = 0;
-    char line[MAX_URL_LENGTH];
-    
-    while (fgets(line, sizeof(line), file) != NULL && url_list->count < MAX_URLS) {
-        // Remove trailing newline and carriage return
-        size_t len = strlen(line);
-        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-            line[len-1] = '\0';
-            len--;
-        }
-        
-        // Skip empty lines and comments (lines starting with #)
-        if (len == 0 || line[0] == '#') {
-            continue;
-        }
-        
-        // Copy URL to list
-        strncpy(url_list->urls[url_list->count], line, MAX_URL_LENGTH - 1);
-        url_list->urls[url_list->count][MAX_URL_LENGTH - 1] = '\0';
-        url_list->count++;
-    }
-    
-    fclose(file);
-    return url_list->count;
-}
-
 // Function to convert Google Drive URLs to direct download links
 static void convert_gdrive_url(const char* input_url, char* output_url, size_t output_size) {
     // Check if it's a Google Drive URL
