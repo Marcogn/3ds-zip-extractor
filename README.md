@@ -18,14 +18,16 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 - **Multiple Downloads**: Support for downloading and extracting multiple files sequentially
 - **Configuration File**: Enhanced config file with both settings and URLs
 - **Download Queue Management**: View queue status, skip failed items, retry downloads
+- **File Browser**: Browse and select extraction destination folder
 - **Auto-Retry**: Automatically retry failed downloads with configurable attempts
 - **Google Drive Support**: Automatically converts Google Drive URLs to direct download links
+  - **NEW:** Enhanced support for files >100MB with automatic virus scan confirmation
 - **Multiple Archive Formats**: Supports ZIP, TAR, 7Z, and many other formats via libarchive
 - **Resume Support**: Automatically resumes interrupted downloads
 - **Large File Handling**: Efficient streaming for large files
 - **Progress Tracking**: Real-time download and extraction progress display
 - **Batch Summary**: Shows statistics after processing all files
-- **Configurable Output**: Custom extract path via configuration file
+- **Configurable Output**: Custom extract path via configuration file or file browser
 
 ## Requirements
 
@@ -123,13 +125,34 @@ By default, files are extracted to `sdmc:/extracted/`. To change this, modify th
 3. Copy `config.txt` to `/3ds/zip-extractor/config.txt` on your SD card
 4. Edit `config.txt` to configure settings and add your download URLs
 5. Launch via Homebrew Launcher
-6. Press **X** to view download queue with status indicators
-7. Press **A** to start downloading and extracting all files
-8. Press **Y** (in queue view) to skip all failed downloads
-9. Press **L/R** (in queue view) to navigate pages
-10. Press **B** to cancel during download or go back in menus
-11. Press **A** (after completion) to retry failed downloads
-12. Press **START** to exit
+6. Press **SELECT** to browse and choose extraction folder
+7. Press **X** to view download queue with status indicators
+8. Press **A** to start downloading and extracting all files
+9. Press **Y** (in queue view) to skip all failed downloads
+10. Press **L/R** (in queue view) to navigate pages
+11. Press **B** to cancel during download or go back in menus
+12. Press **A** (after completion) to retry failed downloads
+13. Press **START** to exit
+
+### Controls
+
+**Main Menu:**
+- **A** - Start downloads
+- **X** - View queue
+- **SELECT** - Open file browser
+- **START** - Exit
+
+**File Browser:**
+- **D-Pad ↑↓** - Navigate
+- **A** - Enter folder
+- **Y** - Select current folder as destination
+- **B** - Cancel/Back
+
+**Queue View:**
+- **L/R** - Change page
+- **Y** - Skip failed
+- **A** - Continue/Retry
+- **B** - Back
 
 ### Queue Status Indicators
 

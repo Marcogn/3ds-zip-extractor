@@ -2,6 +2,35 @@
 
 All notable changes to the 3DS Zip Extractor project will be documented in this file.
 
+## [1.3.0] - 2026-01-23
+
+### Added
+- **File Browser**: Interactive file browser to select extraction destination
+  - Navigate SD card directories with D-Pad
+  - Enter folders with A button
+  - Select folder as destination with Y button
+  - Parent directory navigation with ".."
+  - Sorted display (directories first, then alphabetically)
+  - Visual indicators: `/` for directories, `>` for selection
+  - Scroll support for long directory listings
+- **Enhanced Google Drive Support**:
+  - Improved handling of files >100MB
+  - Added automatic `confirm=t` parameter for virus scan bypass
+  - Better URL conversion for large files
+  - Reduced failures with Google Drive large files
+- **SELECT Button**: Opens file browser for destination selection
+- **Improved Navigation**: Better UI flow between menus
+
+### Changed
+- Extract path can now be selected via file browser (in addition to config file)
+- Google Drive URL conversion now includes confirmation parameter
+- Main menu updated with SELECT button hint
+
+### Improved
+- Better Google Drive reliability for large files
+- More intuitive destination selection
+- Clearer visual feedback in file browser
+
 ## [1.2.0] - 2026-01-23
 
 ### Added
@@ -152,6 +181,7 @@ Contributions are welcome! Please feel free to submit pull requests for:
 
 ## Version History
 
+- **1.3.0** (2026-01-23): Added file browser and enhanced Google Drive support
 - **1.2.0** (2026-01-23): Added enhanced configuration and queue management
 - **1.1.0** (2026-01-23): Added configuration file support and multiple downloads
 - **1.0.0** (2026-01-23): Initial release with core functionality
