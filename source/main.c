@@ -163,9 +163,9 @@ static void update_download_display(int current, int total, DownloadData* data, 
     if (data->total > 0) {
         printf("\x1b[10;1HProgress: %.2f MB / %.2f MB", 
                (data->downloaded) / (1024.0 * 1024.0),
-               (data->downloaded + data->total) / (1024.0 * 1024.0));
+               (data->total) / (1024.0 * 1024.0));
         printf("\x1b[11;1HPercentage: %.1f%%", 
-               (data->downloaded * 100.0) / (data->downloaded + data->total));
+               (data->downloaded * 100.0) / data->total);
     }
     printf("\x1b[13;1HPress B to cancel");
     
@@ -356,9 +356,16 @@ int main(int argc, char** argv) {
     
     // Initialize networking
     Result ret = 0;
-    ret = socInit((u32*)memalign(0x1000, 0x100000), 0x100000);
+    u32* socMemory = (u32*)memalign(0x1000, 0x100000);
+    if (!socMemory) {
+        printf("Failed to allocate socket memory\n");
+        goto cleanup;
+    }
+    
+    ret = socInit(socMemory, 0x100000);
     if (ret != 0) {
         printf("socInit failed: 0x%08lX\n", ret);
+        free(socMemory);
         goto cleanup;
     }
     
@@ -369,8 +376,9 @@ int main(int argc, char** argv) {
     UrlList url_list = {0};
     
     // Create config directory if it doesn't exist
-    mkdir("sdmc:/3ds", 0777);
-    mkdir("sdmc:/3ds/zip-extractor", 0777);
+    ret = mkdir("sdmc:/3ds", 0777);
+    ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
+    // Ignore errors - directories may already exist
     
     // Try to read URLs from config file
     int url_count = read_urls_from_file(CONFIG_FILE_PATH, &url_list);
@@ -521,6 +529,7 @@ int main(int argc, char** argv) {
     
     curl_global_cleanup();
     socExit();
+    free(socMemory);
     
 cleanup:
     gfxExit();

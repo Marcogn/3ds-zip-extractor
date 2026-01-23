@@ -2,6 +2,16 @@
 
 A homebrew application for New Nintendo 3DS that downloads and extracts compressed files from web URLs, including Google Drive.
 
+> **📖 New to this project? Start with [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions in Italian and English!**
+
+## ⚠️ Important: How to Use This
+
+1. **On your PC**: Install devkitPro and compile this project (see [QUICKSTART.md](QUICKSTART.md))
+2. **Copy to SD**: Put the compiled `.3dsx` file and `urls.txt` on your 3DS SD card
+3. **On your 3DS**: Run from Homebrew Launcher
+
+**You cannot compile directly on the 3DS.** You need a PC with devkitPro installed.
+
 ## Features
 
 - **Download from URLs**: Download compressed files from any HTTP/HTTPS URL
@@ -17,35 +27,36 @@ A homebrew application for New Nintendo 3DS that downloads and extracts compress
 
 ## Requirements
 
-### To Build:
-- devkitARM
+### To Build (on PC):
+- devkitARM toolchain
 - libctru
 - citro3d
 - libcurl (from devkitPro portlibs)
 - libarchive (from devkitPro portlibs)
 - mbedtls (from devkitPro portlibs)
 
-### To Run:
-- New Nintendo 3DS with custom firmware
+**See [QUICKSTART.md](QUICKSTART.md) for installation instructions.**
+
+### To Run (on 3DS):
+- New Nintendo 3DS with custom firmware (CFW)
 - Homebrew Launcher or CIA installer
+- Internet connection
 
 ## Building
 
-1. Install devkitPro and required libraries:
+**Full instructions in [QUICKSTART.md](QUICKSTART.md)**
+
+Quick version:
+
+1. Install devkitPro and 3DS development tools
 ```bash
 sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive 3ds-mbedtls
 ```
 
-2. Clone the repository:
+2. Clone and build:
 ```bash
 git clone https://github.com/Marcogn/3ds-zip-extractor.git
 cd 3ds-zip-extractor
-```
-
-3. Edit `source/main.c` to set your download URL (see Usage section)
-
-4. Build:
-```bash
 make
 ```
 
