@@ -17,13 +17,17 @@ Hai ragione al 100%! Un downloader senza estrazione non ha senso.
    - Progress bar grafica
    - Google Drive support
 
-2. **Estrazione ZIP** ⭐ NUOVO!
-   - **Deflate compression** (95% dei ZIP)
+2. **Estrazione ZIP** ⭐ NUOVO! (SOLO .ZIP!)
+   - **Solo formato ZIP standard** (non 7z, RAR, TAR)
+   - **Deflate compression** (90% dei ZIP)
    - **Store (uncompressed)** (5% dei ZIP)
    - **Directory nidificate**
    - **File multipli**
    - **Progress tracking**
    - **Cancel con B button**
+   
+   ⚠️ **IMPORTANTE:** Solo file .zip sono estratti automaticamente.
+   Altri formati (7z, rar, tar.gz) vengono solo scaricati.
 
 3. **Queue Management**
    - Scarica e estrae automaticamente
