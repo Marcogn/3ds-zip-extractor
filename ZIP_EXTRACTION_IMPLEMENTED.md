@@ -101,14 +101,27 @@ static int mkdir_recursive(const char* path) {
 
 ## 📊 Formati Supportati
 
-### ✅ Funziona (95%+ dei casi)
+### ✅ ESTRATTO AUTOMATICAMENTE
 
-| Metodo | Percentuale | Status |
-|--------|-------------|--------|
-| Deflate (8) | ~90% | ✅ FUNZIONA |
-| Store (0) | ~5% | ✅ FUNZIONA |
+| Formato | Compressione | Status |
+|---------|--------------|--------|
+| ZIP | Deflate (method 8) | ✅ FUNZIONA |
+| ZIP | Store/uncompressed (method 0) | ✅ FUNZIONA |
 
-**Totale: 95%+ di tutti i file ZIP reali**
+**Totale: 95%+ di tutti i file .zip reali**
+
+### 📥 SOLO DOWNLOAD (Non estratto)
+
+| Formato | Status | Workaround |
+|---------|--------|------------|
+| 7z | ⚠️ Solo download | Estrai su PC |
+| RAR | ⚠️ Solo download | Estrai su PC |
+| TAR.GZ | ⚠️ Solo download | Estrai su PC |
+| TAR.BZ2 | ⚠️ Solo download | Estrai su PC |
+| TAR.XZ | ⚠️ Solo download | Estrai su PC |
+
+**L'app scarica questi file ma non li estrae.**
+**Devi estrarli manualmente su PC.**
 
 ### ⚠️ Non Supportato (Raro)
 

@@ -12,7 +12,8 @@
 > - ✅ HTTP/HTTPS downloads with resume
 > - ✅ Google Drive URL conversion
 > - ✅ Queue management and GUI
-> - ✅ **ZIP extraction working!** Supports deflate and store compression
+> - ✅ **ZIP extraction working!** (deflate & store)
+> - ⚠️ **Other formats (7z, RAR, TAR) are downloaded but not extracted**
 ---
 ## Quick Start
 ### Build
@@ -42,7 +43,8 @@ Launch from Homebrew Launcher, press A to start downloads.
 ## Features
 ✅ **HTTP/HTTPS downloads** with resume
 ✅ **Google Drive** support (auto virus scan bypass for >100MB)
-✅ **ZIP extraction** (deflate and store compression)
+✅ **ZIP extraction** (deflate and store - 95% of ZIP files)
+⚠️ **Other formats** (7z, RAR, TAR) downloaded but not extracted
 ✅ **Queue management** (skip, retry, status)
 ✅ **Hybrid GUI** (console + graphics)
 ✅ **File browser** for destination
