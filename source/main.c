@@ -6,9 +6,7 @@
 #include <sys/stat.h>
 #include <3ds.h>
 #include <curl/curl.h>
-// TODO: Replace libarchive with simpler ZIP-only implementation
-// #include <archive.h>
-// #include <archive_entry.h>
+#include <zlib.h>
 #include "gui.h"
 
 #define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
@@ -513,88 +511,273 @@ static Result download_file(const char* url, const char* output_path, bool* canc
     return 0;
 }
 
+// Simple ZIP structures (minimal implementation)
+#pragma pack(1)
+typedef struct {
+    u32 signature;           // 0x04034b50
+    u16 version;
+    u16 flags;
+    u16 compression;         // 0=store, 8=deflate
+    u16 mod_time;
+    u16 mod_date;
+    u32 crc32;
+    u32 compressed_size;
+    u32 uncompressed_size;
+    u16 filename_len;
+    u16 extra_len;
+} ZipLocalHeader;
+
+typedef struct {
+    u32 signature;           // 0x02014b50
+    u16 version_made;
+    u16 version_needed;
+    u16 flags;
+    u16 compression;
+    u16 mod_time;
+    u16 mod_date;
+    u32 crc32;
+    u32 compressed_size;
+    u32 uncompressed_size;
+    u16 filename_len;
+    u16 extra_len;
+    u16 comment_len;
+    u16 disk_start;
+    u16 internal_attr;
+    u32 external_attr;
+    u32 local_header_offset;
+} ZipCentralHeader;
+#pragma pack()
+
+#define ZIP_LOCAL_SIGNATURE 0x04034b50
+#define ZIP_CENTRAL_SIGNATURE 0x02014b50
+#define ZIP_END_SIGNATURE 0x06054b50
+
+// Create directory recursively
+static int mkdir_recursive(const char* path) {
+    char tmp[512];
+    char* p = NULL;
+    size_t len;
+
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    len = strlen(tmp);
+    if (tmp[len - 1] == '/')
+        tmp[len - 1] = 0;
+
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = 0;
+            mkdir(tmp, 0777);
+            *p = '/';
+        }
+    }
+    return mkdir(tmp, 0777);
+}
+
+// Extract single file from ZIP
+static int extract_zip_file(FILE* zip, ZipLocalHeader* header, const char* output_dir) {
+    char filename[512];
+    char fullpath[1024];
+
+    // Read filename
+    if (header->filename_len >= sizeof(filename)) {
+        printf("Filename too long\n");
+        fseek(zip, header->filename_len + header->extra_len, SEEK_CUR);
+        return -1;
+    }
+
+    fread(filename, 1, header->filename_len, zip);
+    filename[header->filename_len] = '\0';
+
+    // Skip extra field
+    fseek(zip, header->extra_len, SEEK_CUR);
+
+    // Build full output path
+    snprintf(fullpath, sizeof(fullpath), "%s%s", output_dir, filename);
+
+    // Check if it's a directory
+    if (filename[header->filename_len - 1] == '/') {
+        mkdir_recursive(fullpath);
+        fseek(zip, header->compressed_size, SEEK_CUR);
+        return 0;
+    }
+
+    // Create parent directories
+    char dirpath[1024];
+    snprintf(dirpath, sizeof(dirpath), "%s", fullpath);
+    char* last_slash = strrchr(dirpath, '/');
+    if (last_slash) {
+        *last_slash = '\0';
+        mkdir_recursive(dirpath);
+    }
+
+    // Open output file
+    FILE* out = fopen(fullpath, "wb");
+    if (!out) {
+        printf("Cannot create: %s\n", fullpath);
+        fseek(zip, header->compressed_size, SEEK_CUR);
+        return -1;
+    }
+
+    // Extract based on compression method
+    if (header->compression == 0) {
+        // Stored (no compression)
+        char buffer[8192];
+        u32 remaining = header->uncompressed_size;
+        while (remaining > 0) {
+            size_t to_read = (remaining < sizeof(buffer)) ? remaining : sizeof(buffer);
+            size_t read = fread(buffer, 1, to_read, zip);
+            if (read == 0) break;
+            fwrite(buffer, 1, read, out);
+            remaining -= read;
+        }
+    } else if (header->compression == 8) {
+        // Deflate compression
+        z_stream stream = {0};
+        if (inflateInit2(&stream, -MAX_WBITS) != Z_OK) {
+            printf("inflateInit2 failed\n");
+            fclose(out);
+            return -1;
+        }
+
+        unsigned char in_buffer[8192];
+        unsigned char out_buffer[8192];
+        u32 remaining = header->compressed_size;
+
+        while (remaining > 0) {
+            size_t to_read = (remaining < sizeof(in_buffer)) ? remaining : sizeof(in_buffer);
+            stream.avail_in = fread(in_buffer, 1, to_read, zip);
+            if (stream.avail_in == 0) break;
+
+            stream.next_in = in_buffer;
+            remaining -= stream.avail_in;
+
+            do {
+                stream.avail_out = sizeof(out_buffer);
+                stream.next_out = out_buffer;
+
+                int ret = inflate(&stream, Z_NO_FLUSH);
+                if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
+                    printf("inflate error: %d\n", ret);
+                    inflateEnd(&stream);
+                    fclose(out);
+                    return -1;
+                }
+
+                size_t have = sizeof(out_buffer) - stream.avail_out;
+                fwrite(out_buffer, 1, have, out);
+
+            } while (stream.avail_out == 0);
+        }
+
+        inflateEnd(&stream);
+    } else {
+        printf("Unsupported compression: %d\n", header->compression);
+        fclose(out);
+        fseek(zip, header->compressed_size, SEEK_CUR);
+        return -1;
+    }
+
+    fclose(out);
+    return 0;
+}
+
 // Extract archive with progress tracking
-// TODO: Implement ZIP extraction using zlib directly
-// For now, just skip extraction and save the downloaded file
 static Result extract_archive(const char* archive_path, const char* output_dir, int current, int total) {
     extract_data.extracted_files = 0;
     extract_data.current_size = 0;
     
+    FILE* zip = fopen(archive_path, "rb");
+    if (!zip) {
+        consoleClear();
+        printf("\x1b[2;1HZip Extractor for 3DS");
+        printf("\x1b[4;1H================================");
+        printf("\x1b[6;1HError: Cannot open archive\n");
+        printf("\x1b[8;1H%s\n", archive_path);
+        printf("\x1b[12;1HPress A to continue\n");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_A) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
+        return -1;
+    }
+
     consoleClear();
     printf("\x1b[2;1HZip Extractor for 3DS");
     printf("\x1b[4;1H================================");
-    printf("\x1b[6;1H");
-
-    // For now, just copy the file to the output directory instead of extracting
-    printf("Archive downloaded successfully!\n\n");
-    printf("Location: %s\n\n", archive_path);
-
-    // Get filename from path
-    const char* filename = strrchr(archive_path, '/');
-    if (filename) {
-        filename++; // Skip the '/'
+    if (total > 1) {
+        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
     } else {
-        filename = archive_path;
+        printf("\x1b[6;1HExtracting archive...\n");
     }
 
-    // Create destination path
-    char dest_path[512];
-    snprintf(dest_path, sizeof(dest_path), "%s%s", output_dir, filename);
+    // Read and extract files
+    ZipLocalHeader header;
+    int file_count = 0;
 
-    // Copy file
-    FILE* src = fopen(archive_path, "rb");
-    if (!src) {
-        printf("Error: Cannot open source file\n");
-        return -1;
-    }
+    while (fread(&header, sizeof(ZipLocalHeader), 1, zip) == 1) {
+        if (header.signature != ZIP_LOCAL_SIGNATURE) {
+            // Reached end of local headers
+            break;
+        }
 
-    FILE* dst = fopen(dest_path, "wb");
-    if (!dst) {
-        printf("Error: Cannot create destination file\n");
-        fclose(src);
-        return -1;
-    }
+        file_count++;
+        extract_data.extracted_files = file_count;
 
-    printf("Copying to: %s\n", dest_path);
+        // Update display
+        consoleClear();
+        printf("\x1b[2;1HZip Extractor for 3DS");
+        printf("\x1b[4;1H================================");
+        if (total > 1) {
+            printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
+        } else {
+            printf("\x1b[6;1HExtracting...\n");
+        }
+        printf("\x1b[8;1HFiles extracted: %d\n", file_count);
+        printf("\x1b[10;1HPress B to cancel\n");
 
-    char buffer[8192];
-    size_t bytes;
-    while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
-        fwrite(buffer, 1, bytes, dst);
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
 
         // Check for cancel
         hidScanInput();
-        u32 kDown = hidKeysDown();
-        if (kDown & KEY_B) {
-            fclose(src);
-            fclose(dst);
-            printf("\nCancelled by user\n");
+        if (hidKeysDown() & KEY_B) {
+            fclose(zip);
+            printf("\n\nCancelled by user\n");
             return -2;
+        }
+
+        // Extract this file
+        int ret = extract_zip_file(zip, &header, output_dir);
+        if (ret != 0) {
+            printf("Warning: Failed to extract file\n");
         }
     }
 
-    fclose(src);
-    fclose(dst);
+    fclose(zip);
 
-    // Remove temp file
+    // Remove temp archive file
     remove(archive_path);
 
-    printf("\nFile saved successfully!\n");
-    printf("\nNote: Extraction not yet implemented.\n");
-    printf("The archive has been saved to your SD card.\n");
-    printf("You can extract it manually on PC.\n\n");
-    printf("Press A to continue\n");
+    consoleClear();
+    printf("\x1b[2;1HZip Extractor for 3DS");
+    printf("\x1b[4;1H================================");
+    printf("\x1b[6;1HExtraction complete!\n\n");
+    printf("\x1b[8;1HExtracted %d file(s)\n", file_count);
+    printf("\x1b[10;1HLocation: %s\n", output_dir);
+    printf("\x1b[14;1HPress A to continue\n");
 
     while (aptMainLoop()) {
         hidScanInput();
-        u32 kDown = hidKeysDown();
-        if (kDown & KEY_A) break;
+        if (hidKeysDown() & KEY_A) break;
         gfxFlushBuffers();
         gfxSwapBuffers();
         gspWaitForVBlank();
     }
 
-    extract_data.extracted_files = 1;
     return 0;
 }
 

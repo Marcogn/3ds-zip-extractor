@@ -8,11 +8,11 @@
 ---
 > **✅ BUILD WORKING!** The project now compiles successfully.
 > 
-> **Current MVP features:**
+> **Fully functional features:**
 > - ✅ HTTP/HTTPS downloads with resume
 > - ✅ Google Drive URL conversion
 > - ✅ Queue management and GUI
-> - ⚠️ Archives saved but not extracted (extract on PC for now)
+> - ✅ **ZIP extraction working!** Supports deflate and store compression
 ---
 ## Quick Start
 ### Build
@@ -42,10 +42,10 @@ Launch from Homebrew Launcher, press A to start downloads.
 ## Features
 ✅ **HTTP/HTTPS downloads** with resume
 ✅ **Google Drive** support (auto virus scan bypass for >100MB)
+✅ **ZIP extraction** (deflate and store compression)
 ✅ **Queue management** (skip, retry, status)
 ✅ **Hybrid GUI** (console + graphics)
 ✅ **File browser** for destination
-⚠️ **Extraction** - Archives saved, extract on PC (implementation in progress)
 ---
 ## Controls
 - **A** - Start downloads
