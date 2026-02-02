@@ -1,48 +1,48 @@
-# Documentazione 3DS Archive Extractor
+# 3DS Archive Extractor Documentation
 
-Benvenuto nella documentazione completa di 3DS Archive Extractor!
-
----
-
-## 📚 Guide Principali
-
-### Per Utenti
-
-📖 **[Guida Utente](USER_GUIDE.md)**  
-Istruzioni dettagliate per installazione, configurazione e utilizzo dell'applicazione.
-
-### Per Sviluppatori
-
-🔧 **[Documentazione Tecnica](TECHNICAL.md)**  
-Architettura, API, formati supportati e dettagli implementazione.
-
-💻 **[Guida Sviluppatori](DEVELOPMENT.md)**  
-Note per chi vuole contribuire o modificare il codice.
+Welcome to the complete documentation for 3DS Archive Extractor!
 
 ---
 
-## 📁 Struttura Documentazione
+## 📚 Main Guides
+
+### For Users
+
+📖 **[User Guide](USER_GUIDE.md)**  
+Detailed instructions for installation, configuration and using the application.
+
+### For Developers
+
+🔧 **[Technical Documentation](TECHNICAL.md)**  
+Architecture, API, supported formats and implementation details.
+
+💻 **[Developer Guide](DEVELOPMENT.md)**  
+Notes for those who want to contribute or modify the code.
+
+---
+
+## 📁 Documentation Structure
 
 ```
 docs/
-├── README.md          # Questo file
-├── USER_GUIDE.md      # Guida utente completa
-├── TECHNICAL.md       # Documentazione tecnica
-├── DEVELOPMENT.md     # Note sviluppatori
-└── archive/           # Documentazione storica
+├── README.md          # This file
+├── USER_GUIDE.md      # Complete user guide
+├── TECHNICAL.md       # Technical documentation
+├── DEVELOPMENT.md     # Developer notes
+└── archive/           # Historical documentation
     ├── README_v1.md
-    └── [altri file storici...]
+    └── [other historical files...]
 ```
 
 ---
 
-## 🔗 Link Rapidi
+## 🔗 Quick Links
 
-### Documentazione Root
-- [README principale](../README.md) - Panoramica progetto
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Come contribuire
-- [SECURITY.md](../SECURITY.md) - Policy sicurezza
-- [LICENSE](../LICENSE) - Licenza MIT
+### Root Documentation
+- [Main README](../README.md) - Project overview
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - How to contribute
+- [SECURITY.md](../SECURITY.md) - Security policy
+- [LICENSE](../LICENSE) - MIT License
 
 ### Repository
 - [GitHub Repository](https://github.com/Marcogn/3ds-zip-extractor)
@@ -52,66 +52,66 @@ docs/
 
 ---
 
-## 📋 FAQ Rapide
+## 📋 Quick FAQ
 
-### Installazione
-**D: Dove copio il file .3dsx?**  
-R: Nella cartella `/3ds/` della tua scheda SD.
+### Installation
+**Q: Where do I copy the .3dsx file?**  
+A: To the `/3ds/` folder on your SD card.
 
-**D: Serve Custom Firmware?**  
-R: No, basta l'Homebrew Launcher.
+**Q: Do I need Custom Firmware?**  
+A: No, Homebrew Launcher is sufficient.
 
-### Utilizzo
-**D: Quali formati supporta?**  
-R: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, 7Z, RAR e altri. Vedi [README](../README.md#formati-supportati).
+### Usage
+**Q: What formats does it support?**  
+A: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, 7Z, RAR and more. See [README](../README.md#supported-formats).
 
-**D: Funziona con Google Drive?**  
-R: Sì, converte automaticamente gli URL di Google Drive.
+**Q: Does it work with Google Drive?**  
+A: Yes, it automatically converts Google Drive URLs.
 
-### Problemi
-**D: Download fallisce sempre**  
-R: Verifica connessione WiFi e prova ad abilitare `auto_retry=true`.
+### Problems
+**Q: Download always fails**  
+A: Check WiFi connection and try enabling `auto_retry=true`.
 
-**D: App crash con archivi grandi**  
-R: Prova su New 3DS per più RAM e CPU potente.
+**Q: App crashes with large archives**  
+A: Try on New 3DS for more RAM and powerful CPU.
 
-Per altre domande, vedi la [Guida Utente](USER_GUIDE.md).
+For other questions, see the [User Guide](USER_GUIDE.md).
 
 ---
 
 ## 🆕 Changelog
 
 ### v2.0 (2026-02-02)
-- ✨ Supporto multi-formato (11+ formati)
-- ✨ Rilevamento automatico formato
-- ✨ Estrazione via libarchive
-- ⚡ Performance migliorate su New 3DS
-- 📚 Documentazione completamente riscritta
+- ✨ Multi-format support (11+ formats)
+- ✨ Automatic format detection
+- ✨ Extraction via libarchive
+- ⚡ Improved performance on New 3DS
+- 📚 Documentation completely rewritten
 
 ### v1.0
-- Supporto base ZIP
-- Download HTTP/HTTPS
-- GUI console
+- Basic ZIP support
+- HTTP/HTTPS downloads
+- Console GUI
 
 ---
 
-## 🤝 Contribuire
+## 🤝 Contributing
 
-Vuoi contribuire? Fantastico! 
+Want to contribute? Great! 
 
-1. Leggi [CONTRIBUTING.md](../CONTRIBUTING.md)
-2. Consulta [DEVELOPMENT.md](DEVELOPMENT.md) per dettagli tecnici
-3. Apri una Pull Request
-
----
-
-## 📧 Supporto
-
-- 🐛 **Bug**: Apri una [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues)
-- 💡 **Feature Request**: Apri una [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues)
-- 📖 **Domande**: Consulta prima la documentazione
+1. Read [CONTRIBUTING.md](../CONTRIBUTING.md)
+2. Consult [DEVELOPMENT.md](DEVELOPMENT.md) for technical details
+3. Open a Pull Request
 
 ---
 
-**Ultima revisione**: 2 Febbraio 2026  
-**Versione docs**: 2.0
+## 📧 Support
+
+- 🐛 **Bug**: Open an [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues)
+- 💡 **Feature Request**: Open an [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues)
+- 📖 **Questions**: Consult the documentation first
+
+---
+
+**Last revision**: February 2, 2026  
+**Docs version**: 2.0
