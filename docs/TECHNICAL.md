@@ -1,39 +1,39 @@
-# Documentazione Tecnica - 3DS Archive Extractor
+# Technical Documentation - 3DS Archive Extractor
 
-## Panoramica
+## Overview
 
-3DS Archive Extractor è un'applicazione homebrew per Nintendo 3DS che permette di scaricare ed estrarre archivi compressi in molteplici formati direttamente sulla console.
-
----
-
-## Formati Supportati
-
-L'applicazione supporta **11+ formati di archivio** tramite libarchive:
-
-### Archivi Completi
-- **ZIP** (.zip) - Formato standard, supporto completo
-- **TAR** (.tar) - Archivi tape, non compressi
-- **7-Zip** (.7z) - Alta compressione
-- **RAR** (.rar) - Solo lettura (estrazione)
-
-### Archivi TAR Compressi
-- **TAR.GZ** (.tar.gz, .tgz) - Compressione GZIP
-- **TAR.BZ2** (.tar.bz2, .tbz2) - Compressione BZIP2
-- **TAR.XZ** (.tar.xz, .txz) - Compressione XZ/LZMA
-- **TAR.ZSTD** (.tar.zst) - Compressione Zstandard
-
-### File Singoli Compressi
-- **GZIP** (.gz) - Compressione DEFLATE
-- **BZIP2** (.bz2) - Compressione Burrows-Wheeler
-- **XZ** (.xz) - Compressione LZMA2
-- **ZSTD** (.zst) - Compressione Zstandard
-
-### Non Supportato
-- **LZ4** (.lz4) - Libreria non disponibile su 3DS portlibs
+3DS Archive Extractor is a homebrew application for Nintendo 3DS that allows you to download and extract compressed archives in multiple formats directly on the console.
 
 ---
 
-## Architettura
+## Supported Formats
+
+The application supports **11+ archive formats** via libarchive:
+
+### Complete Archives
+- **ZIP** (.zip) - Standard format, full support
+- **TAR** (.tar) - Tape archives, uncompressed
+- **7-Zip** (.7z) - High compression
+- **RAR** (.rar) - Read-only (extraction)
+
+### Compressed TAR Archives
+- **TAR.GZ** (.tar.gz, .tgz) - GZIP compression
+- **TAR.BZ2** (.tar.bz2, .tbz2) - BZIP2 compression
+- **TAR.XZ** (.tar.xz, .txz) - XZ/LZMA compression
+- **TAR.ZSTD** (.tar.zst) - Zstandard compression
+
+### Single Compressed Files
+- **GZIP** (.gz) - DEFLATE compression
+- **BZIP2** (.bz2) - Burrows-Wheeler compression
+- **XZ** (.xz) - LZMA2 compression
+- **ZSTD** (.zst) - Zstandard compression
+
+### Not Supported
+- **LZ4** (.lz4) - Library not available on 3DS portlibs
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -62,12 +62,12 @@ L'applicazione supporta **11+ formati di archivio** tramite libarchive:
 
 ---
 
-## Rilevamento Formato
+## Format Detection
 
-Il rilevamento del formato avviene tramite analisi dei "magic bytes" (signature del file):
+Format detection occurs through analysis of "magic bytes" (file signature):
 
 ```c
-// Esempi di signature
+// Signature examples
 ZIP:    PK\x03\x04
 GZIP:   0x1f 0x8b
 BZIP2:  BZ
@@ -78,42 +78,42 @@ XZ:     FD 37 7A 58 5A 00
 ZSTD:   28 B5 2F FD
 ```
 
-Il file `archive_extractor.c` implementa la funzione:
+The file `archive_extractor.c` implements the function:
 ```c
 ArchiveType detect_archive_type(const char* file_path);
 ```
 
 ---
 
-## Flusso Operativo
+## Operational Flow
 
-1. **Inizializzazione**
-   - Lettura `config.txt`
-   - Inizializzazione GUI
-   - Setup networking
+1. **Initialization**
+   - Reading `config.txt`
+   - GUI initialization
+   - Networking setup
 
 2. **Download**
-   - Richiesta HTTP/HTTPS via libcurl
-   - Supporto resume per download interrotti
-   - Conversione URL Google Drive automatica
+   - HTTP/HTTPS request via libcurl
+   - Resume support for interrupted downloads
+   - Automatic Google Drive URL conversion
    - Progress tracking
 
-3. **Estrazione**
-   - Rilevamento automatico formato
-   - Estrazione via libarchive
-   - Callback per progress updates
-   - Gestione errori robusta
+3. **Extraction**
+   - Automatic format detection
+   - Extraction via libarchive
+   - Callback for progress updates
+   - Robust error handling
 
 4. **Cleanup**
-   - Rimozione file temporanei
-   - Report risultato
-   - Aggiornamento coda
+   - Temporary file removal
+   - Result reporting
+   - Queue update
 
 ---
 
-## Compatibilità Hardware
+## Hardware Compatibility
 
-### Console Supportate
+### Supported Consoles
 - Nintendo 3DS (Old) - 64MB RAM, 268MHz CPU
 - Nintendo 3DS XL (Old)
 - Nintendo 2DS
@@ -121,69 +121,69 @@ ArchiveType detect_archive_type(const char* file_path);
 - New Nintendo 3DS XL
 - New Nintendo 2DS XL
 
-### Requisiti Memoria
+### Memory Requirements
 ```
-Buffer Download:      128KB
-Buffer Estrazione:    128KB
-Stack App:            ~4MB
-Heap libarchive:      2-8MB (dinamico)
+Download Buffer:      128KB
+Extraction Buffer:    128KB
+App Stack:            ~4MB
+libarchive Heap:      2-8MB (dynamic)
 ────────────────────────────
-Totale Tipico:        6-12MB
+Typical Total:        6-12MB
 
-✅ Compatibile con 3DS Old (64MB disponibili)
-✅ Ottimale su New 3DS (128MB disponibili)
+✅ Compatible with Old 3DS (64MB available)
+✅ Optimal on New 3DS (128MB available)
 ```
 
 ### Performance
 
-| Operazione | 3DS Old (268MHz) | New 3DS (804MHz) |
+| Operation | Old 3DS (268MHz) | New 3DS (804MHz) |
 |-----------|------------------|------------------|
 | Download 10MB | ~30-60s | ~30-60s (I/O bound) |
-| Estrai ZIP 10MB | ~10-20s | ~3-7s |
-| Estrai TAR.GZ 10MB | ~15-30s | ~5-10s |
-| Estrai 7Z 10MB | ~20-40s | ~7-15s |
+| Extract ZIP 10MB | ~10-20s | ~3-7s |
+| Extract TAR.GZ 10MB | ~15-30s | ~5-10s |
+| Extract 7Z 10MB | ~20-40s | ~7-15s |
 
 ---
 
-## Sicurezza
+## Security
 
-### Protezioni Implementate
+### Implemented Protections
 
 1. **Buffer Overflow Protection**
-   - Buffer size fissi e validati
-   - Uso di `strncpy` invece di `strcpy`
-   - Controlli limiti array
+   - Fixed and validated buffer sizes
+   - Use of `strncpy` instead of `strcpy`
+   - Array bounds checking
 
 2. **Path Traversal Protection**
    - Flag `ARCHIVE_EXTRACT_SECURE_NODOTDOT`
-   - Impedisce estrazione fuori directory target
-   - Sanitizzazione percorsi
+   - Prevents extraction outside target directory
+   - Path sanitization
 
-3. **Gestione Memoria**
-   - No `malloc` esplicito non gestito
-   - libarchive gestisce memoria internamente
-   - Cleanup automatico in caso errore
+3. **Memory Management**
+   - No unmanaged explicit `malloc`
+   - libarchive manages memory internally
+   - Automatic cleanup on error
 
-### Limitazioni Note
+### Known Limitations
 
-1. **SSL Certificate Verification: DISABILITATA**
-   - Motivo: 3DS non ha certificate store
-   - Impatto: Possibili MITM attacks
-   - Nota: Limitazione comune app homebrew 3DS
+1. **SSL Certificate Verification: DISABLED**
+   - Reason: 3DS has no certificate store
+   - Impact: Possible MITM attacks
+   - Note: Common limitation in 3DS homebrew apps
 
-2. **File Permissions: IGNORATE**
-   - Motivo: SD card usa FAT32
-   - Impatto: Permessi non preservati
-   - Normale su 3DS
+2. **File Permissions: IGNORED**
+   - Reason: SD card uses FAT32
+   - Impact: Permissions not preserved
+   - Normal on 3DS
 
 ---
 
-## Stub POSIX
+## POSIX Stubs
 
-Il 3DS non implementa alcune funzioni POSIX. Sono stati creati stub sicuri:
+The 3DS does not implement some POSIX functions. Safe stubs have been created:
 
 ```c
-// Stub per funzioni non disponibili
+// Stubs for unavailable functions
 mode_t umask(mode_t mask) {
     return 0022;  // Default umask
 }
@@ -204,9 +204,9 @@ int LZ4_decompress_safe(...) {
 
 ---
 
-## Compilazione
+## Building
 
-### Prerequisiti
+### Prerequisites
 ```bash
 sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-citro3d 3ds-citro2d \
                    3ds-libarchive 3ds-zlib 3ds-bzip2 3ds-xz 3ds-zstd
@@ -222,7 +222,7 @@ make
 - `3ds-zip-extractor.3dsx` - Eseguibile per Homebrew Launcher
 - `3ds-zip-extractor.elf` - File debug con simboli
 
-### Librerie Linkate
+### Linked Libraries
 ```makefile
 LIBS := -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto \
         -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
@@ -230,18 +230,18 @@ LIBS := -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto \
 
 ---
 
-## API Principale
+## Main API
 
 ### Archive Extractor
 
 ```c
-// Rileva tipo archivio
+// Detect archive type
 ArchiveType detect_archive_type(const char* file_path);
 
-// Ottieni nome tipo
+// Get type name
 const char* get_archive_type_name(ArchiveType type);
 
-// Estrai archivio
+// Extract archive
 int extract_archive_libarchive(
     const char* archive_path,
     const char* output_dir,
@@ -249,7 +249,7 @@ int extract_archive_libarchive(
     void* user_data
 );
 
-// Callback per progress
+// Callback for progress
 typedef bool (*ExtractCallback)(
     int file_count,
     const char* current_file,
@@ -259,54 +259,54 @@ typedef bool (*ExtractCallback)(
 
 ---
 
-## Struttura File
+## File Structure
 
 ```
 3ds-zip-extractor/
 ├── source/
-│   ├── main.c              # Logic principale
-│   ├── archive_extractor.c # Estrazione multi-formato
-│   └── gui.c               # Rendering grafico
+│   ├── main.c              # Main logic
+│   ├── archive_extractor.c # Multi-format extraction
+│   └── gui.c               # Graphic rendering
 ├── include/
 │   ├── gui.h
 │   └── archive_extractor.h
 ├── docs/
-│   ├── TECHNICAL.md        # Questo file
-│   ├── USER_GUIDE.md       # Guida utente
-│   ├── DEVELOPMENT.md      # Note sviluppatori
-│   └── archive/            # File storici
-├── build/                  # File compilati
+│   ├── TECHNICAL.md        # This file
+│   ├── USER_GUIDE.md       # User guide
+│   ├── DEVELOPMENT.md      # Developer notes
+│   └── archive/            # Historical files
+├── build/                  # Compiled files
 ├── Makefile
-├── config.txt              # Esempio config
-├── README.md               # Documentazione principale
-├── CONTRIBUTING.md         # Guide contribuzione
-├── SECURITY.md             # Policy sicurezza
-└── LICENSE                 # Licenza MIT
+├── config.txt              # Config example
+├── README.md               # Main documentation
+├── CONTRIBUTING.md         # Contribution guides
+├── SECURITY.md             # Security policy
+└── LICENSE                 # MIT License
 ```
 
 ---
 
-## Debug e Testing
+## Debug and Testing
 
-### Compilazione Debug
+### Debug Build
 ```bash
 make clean
 make V=1  # Verbose output
 ```
 
-### Check Errori
+### Error Checking
 ```bash
-# Cerca memory leaks (se disponibile su 3DS)
-# Verifica log console durante esecuzione
+# Search for memory leaks (if available on 3DS)
+# Check console log during execution
 ```
 
-### Test su Citra Emulator
+### Testing on Citra Emulator
 ```bash
-# L'app può essere testata su Citra 3DS emulator
+# The app can be tested on Citra 3DS emulator
 citra-qt 3ds-zip-extractor.3dsx
 ```
 
-**Nota**: Alcune funzioni di rete potrebbero non funzionare su emulatore.
+**Note**: Some network functions may not work on emulator.
 
 ---
 
@@ -314,56 +314,56 @@ citra-qt 3ds-zip-extractor.3dsx
 
 ### Build Errors
 
-**Errore: `libarchive not found`**
+**Error: `libarchive not found`**
 ```bash
 sudo dkp-pacman -S 3ds-libarchive
 ```
 
-**Errore: `undefined reference to LZ4_*`**
-- Normale, stub implementato
-- Se persiste: verifica che `archive_extractor.c` sia compilato
+**Error: `undefined reference to LZ4_*`**
+- Normal, stub implemented
+- If persists: verify that `archive_extractor.c` is compiled
 
 ### Runtime Errors
 
-**App crash all'avvio**
-- Verifica `config.txt` sia presente
-- Controlla formato config file
+**App crashes on startup**
+- Verify `config.txt` is present
+- Check config file format
 
-**Download fallisce**
-- Verifica connessione WiFi 3DS
-- Testa URL su browser prima
+**Download fails**
+- Verify 3DS WiFi connection
+- Test URL in browser first
 
-**Estrazione fallisce**
-- Verifica spazio su SD card
-- File potrebbe essere corrotto
-- Formato potrebbe non essere supportato
+**Extraction fails**
+- Verify space on SD card
+- File might be corrupted
+- Format might not be supported
 
 ---
 
-## Ottimizzazioni Future
+## Future Optimizations
 
 ### Performance
-- [ ] Decompressione multi-thread su New 3DS
-- [ ] Cache per file piccoli
-- [ ] Streaming diretto (download + estrai)
+- [ ] Multi-threaded decompression on New 3DS
+- [ ] Cache for small files
+- [ ] Direct streaming (download + extract)
 
-### Funzionalità
-- [ ] Supporto LZ4 (se libreria diventa disponibile)
-- [ ] Anteprima contenuto archivio prima estrazione
-- [ ] Estrazione selettiva file
-- [ ] Creazione archivi (non solo estrazione)
+### Functionality
+- [ ] LZ4 support (if library becomes available)
+- [ ] Archive content preview before extraction
+- [ ] Selective file extraction
+- [ ] Archive creation (not just extraction)
 
 ### UI/UX
-- [ ] Grafica completamente GPU-based
-- [ ] Temi personalizzabili
-- [ ] Supporto touch screen
-- [ ] Integrazione file browser 3DS
+- [ ] Fully GPU-based graphics
+- [ ] Customizable themes
+- [ ] Touch screen support
+- [ ] 3DS file browser integration
 
 ---
 
-## Riferimenti
+## References
 
-### Librerie
+### Libraries
 - [libarchive](https://www.libarchive.org/) - Multi-format archive library
 - [libcurl](https://curl.se/libcurl/) - HTTP/HTTPS client
 - [mbedTLS](https://www.trustedfirmware.org/projects/mbed-tls/) - SSL/TLS
@@ -374,12 +374,12 @@ sudo dkp-pacman -S 3ds-libarchive
 - [libctru](https://github.com/devkitPro/libctru) - 3DS system library
 - [citro3d](https://github.com/devkitPro/citro3d) - GPU library
 
-### Documentazione
+### Documentation
 - [3DS Brew Wiki](https://www.3dbrew.org/)
 - [libarchive Manual](https://github.com/libarchive/libarchive/wiki)
 
 ---
 
-**Versione Documento**: 1.0  
-**Data**: 2 Febbraio 2026  
-**Autore**: Marcogn
+**Document Version**: 1.0  
+**Date**: February 2, 2026  
+**Author**: Marcogn
