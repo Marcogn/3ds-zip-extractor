@@ -53,6 +53,12 @@
 - libcurl (from devkitPro portlibs)
 - libarchive (from devkitPro portlibs)
 - mbedtls (from devkitPro portlibs)
+- **Additional compression libraries required by libarchive:**
+  - libzstd (3ds-libzstd)
+  - liblzma (3ds-liblzma) 
+  - libbz2 (3ds-bzip2)
+
+**⚠️ IMPORTANT NOTE:** The current version of libarchive in devkitPro portlibs has linking issues with compression libraries. The build may fail with "undefined reference" errors for ZSTD, LZMA, and BZ2 functions even after installing the required packages. This is a known limitation of the current devkitPro 3DS toolchain.
 
 **See [QUICKSTART.md](QUICKSTART.md) for installation instructions.**
 

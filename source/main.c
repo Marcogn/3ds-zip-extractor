@@ -168,7 +168,12 @@ static void display_file_browser(FileBrowser* browser, int scroll_offset) {
     printf("\x1b[23;1HX: Create New Folder");
 }
 
+// Forward declaration
+static void convert_gdrive_url(const char* input_url, char* output_url, size_t output_size);
+
+/*
 // Handle Google Drive large file confirmation
+// NOTE: This function is currently not used but kept for future reference
 static bool handle_gdrive_confirmation(const char* url, char* final_url, size_t final_url_size) {
     // Check if URL is already a direct download link
     if (strstr(url, "drive.google.com/uc") != NULL) {
@@ -204,6 +209,7 @@ static bool handle_gdrive_confirmation(const char* url, char* final_url, size_t 
     curl_easy_cleanup(curl);
     return true;
 }
+*/
 
 // Function to read configuration file with settings and URLs
 static int read_config_file(const char* file_path, DownloadQueue* queue) {
@@ -510,13 +516,19 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
     extract_data.current_size = 0;
     
     a = archive_read_new();
-    archive_read_support_format_all(a);
-    archive_read_support_filter_all(a);
-    
+    // Support common formats to avoid complex dependencies
+    archive_read_support_format_zip(a);
+    archive_read_support_format_tar(a);
+    archive_read_support_format_gnutar(a);
+    // Support common filters
+    archive_read_support_filter_gzip(a);
+    archive_read_support_filter_none(a);
+
     ext = archive_write_disk_new();
     archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME);
-    archive_write_disk_set_standard_lookup(ext);
-    
+    // Don't use set_standard_lookup as it requires POSIX functions (umask, getpwnam, getgrnam) not available on 3DS
+    // archive_write_disk_set_standard_lookup(ext);
+
     if ((r = archive_read_open_filename(a, archive_path, 10240))) {
         printf("Failed to open archive: %s\n", archive_error_string(a));
         archive_read_free(a);

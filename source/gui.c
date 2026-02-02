@@ -40,7 +40,7 @@ void gui_cleanup(GUI* gui) {
 void gui_begin_frame(GUI* gui) {
     if (!gui || !gui->initialized) return;
     
-    C3D_FrameBegin(C3D_FRAME_SYNCH);
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 }
 
 // End rendering frame and display
