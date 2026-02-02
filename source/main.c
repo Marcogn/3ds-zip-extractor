@@ -8,6 +8,7 @@
 #include <curl/curl.h>
 #include <zlib.h>
 #include "gui.h"
+#include "archive_extractor.h"
 
 #define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
 #define DEFAULT_EXTRACT_PATH "sdmc:/extracted/"
@@ -275,7 +276,7 @@ static int read_config_file(const char* file_path, DownloadQueue* queue) {
 // Display queue status
 static void display_queue_status(DownloadQueue* queue, int current_page) {
     consoleClear();
-    printf("\x1b[1;1HZip Extractor - Queue Status");
+    printf("\x1b[1;1HArchive Extractor - Queue Status");
     printf("\x1b[2;1H================================");
     
     int items_per_page = 12;
@@ -399,7 +400,7 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
 // Update download progress display with hybrid GUI
 static void update_download_display(int current, int total, DownloadData* data, const char* url) {
     consoleClear();
-    printf("\x1b[2;1HZip Extractor for 3DS");
+    printf("\x1b[2;1HArchive Extractor for 3DS");
     printf("\x1b[4;1H================================");
     if (total > 1) {
         printf("\x1b[6;1HDownloading file %d of %d", current, total);
@@ -681,19 +682,78 @@ static int extract_zip_file(FILE* zip, ZipLocalHeader* header, const char* outpu
     return 0;
 }
 
-// Extract archive with progress tracking
+// Callback for extraction progress
+static bool extraction_progress_callback(int file_count, const char* current_file, void* user_data) {
+    int* params = (int*)user_data;
+    int current = params[0];
+    int total = params[1];
+
+    extract_data.extracted_files = file_count;
+    strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
+    extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
+
+    // Update display
+    consoleClear();
+    printf("\x1b[2;1HArchive Extractor for 3DS");
+    printf("\x1b[4;1H================================");
+    if (total > 1) {
+        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
+    } else {
+        printf("\x1b[6;1HExtracting...\n");
+    }
+    printf("\x1b[8;1HFiles extracted: %d\n", file_count);
+    printf("\x1b[9;1HCurrent: %.40s\n", current_file);
+    printf("\x1b[11;1HPress B to cancel\n");
+
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
+
+    // Check for cancel
+    hidScanInput();
+    if (hidKeysDown() & KEY_B) {
+        return true;  // Cancel extraction
+    }
+
+    return false;  // Continue extraction
+}
+
+// Extract archive with progress tracking (multi-format support)
 static Result extract_archive(const char* archive_path, const char* output_dir, int current, int total) {
     extract_data.extracted_files = 0;
     extract_data.current_size = 0;
-    
-    FILE* zip = fopen(archive_path, "rb");
-    if (!zip) {
+    extract_data.current_file[0] = '\0';
+
+    // Detect archive type
+    ArchiveType type = detect_archive_type(archive_path);
+    const char* type_name = get_archive_type_name(type);
+
+    consoleClear();
+    printf("\x1b[2;1HArchive Extractor for 3DS");
+    printf("\x1b[4;1H================================");
+    if (total > 1) {
+        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
+    } else {
+        printf("\x1b[6;1HExtracting archive...\n");
+    }
+    printf("\x1b[8;1HFormat: %s\n", type_name);
+    printf("\x1b[10;1HPress B to cancel\n");
+
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
+
+    // Check if format is supported
+    if (type == ARCHIVE_UNKNOWN) {
         consoleClear();
-        printf("\x1b[2;1HZip Extractor for 3DS");
+        printf("\x1b[2;1HArchive Extractor for 3DS");
         printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HError: Cannot open archive\n");
+        printf("\x1b[6;1HError: Unsupported format\n");
         printf("\x1b[8;1H%s\n", archive_path);
-        printf("\x1b[12;1HPress A to continue\n");
+        printf("\x1b[10;1HSupported formats:");
+        printf("\x1b[11;1H  ZIP, TAR, TAR.GZ, TAR.BZ2");
+        printf("\x1b[12;1H  TAR.XZ, TAR.ZSTD, 7Z, RAR");
+        printf("\x1b[14;1HPress A to continue\n");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
@@ -704,69 +764,56 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
         return -1;
     }
 
-    consoleClear();
-    printf("\x1b[2;1HZip Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    if (total > 1) {
-        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
-    } else {
-        printf("\x1b[6;1HExtracting archive...\n");
-    }
-
-    // Read and extract files
-    ZipLocalHeader header;
-    int file_count = 0;
-
-    while (fread(&header, sizeof(ZipLocalHeader), 1, zip) == 1) {
-        if (header.signature != ZIP_LOCAL_SIGNATURE) {
-            // Reached end of local headers
-            break;
-        }
-
-        file_count++;
-        extract_data.extracted_files = file_count;
-
-        // Update display
-        consoleClear();
-        printf("\x1b[2;1HZip Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        if (total > 1) {
-            printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
-        } else {
-            printf("\x1b[6;1HExtracting...\n");
-        }
-        printf("\x1b[8;1HFiles extracted: %d\n", file_count);
-        printf("\x1b[10;1HPress B to cancel\n");
-
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
-
-        // Check for cancel
-        hidScanInput();
-        if (hidKeysDown() & KEY_B) {
-            fclose(zip);
-            printf("\n\nCancelled by user\n");
-            return -2;
-        }
-
-        // Extract this file
-        int ret = extract_zip_file(zip, &header, output_dir);
-        if (ret != 0) {
-            printf("Warning: Failed to extract file\n");
-        }
-    }
-
-    fclose(zip);
+    // Extract using libarchive
+    int params[2] = {current, total};
+    int file_count = extract_archive_libarchive(archive_path, output_dir,
+                                                 extraction_progress_callback, params);
 
     // Remove temp archive file
     remove(archive_path);
 
+    if (file_count == -4) {
+        // Cancelled by user
+        consoleClear();
+        printf("\x1b[2;1HArchive Extractor for 3DS");
+        printf("\x1b[4;1H================================");
+        printf("\x1b[6;1HExtraction cancelled!\n");
+        printf("\x1b[8;1HPress A to continue\n");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_A) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
+        return -2;
+    }
+
+    if (file_count < 0) {
+        // Error during extraction
+        consoleClear();
+        printf("\x1b[2;1HArchive Extractor for 3DS");
+        printf("\x1b[4;1H================================");
+        printf("\x1b[6;1HError during extraction\n");
+        printf("\x1b[8;1HError code: %d\n", file_count);
+        printf("\x1b[10;1HPress A to continue\n");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_A) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
+        return -1;
+    }
+
+    // Success
     consoleClear();
-    printf("\x1b[2;1HZip Extractor for 3DS");
+    printf("\x1b[2;1HArchive Extractor for 3DS");
     printf("\x1b[4;1H================================");
     printf("\x1b[6;1HExtraction complete!\n\n");
-    printf("\x1b[8;1HExtracted %d file(s)\n", file_count);
+    printf("\x1b[8;1HFormat: %s\n", type_name);
+    printf("\x1b[9;1HExtracted %d file(s)\n", file_count);
     printf("\x1b[10;1HLocation: %s\n", output_dir);
     printf("\x1b[14;1HPress A to continue\n");
 
@@ -824,7 +871,7 @@ int main(int argc, char** argv) {
         extract_path = queue.extract_path;
     }
     
-    printf("\x1b[2;1HZip Extractor for 3DS");
+    printf("\x1b[2;1HArchive Extractor for 3DS");
     printf("\x1b[4;1H================================");
     
     if (url_count > 0) {
@@ -836,10 +883,12 @@ int main(int argc, char** argv) {
         if (queue.auto_retry) {
             printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
         }
-        printf("\x1b[15;1HPress A to start downloads");
-        printf("\x1b[16;1HPress X to view queue");
-        printf("\x1b[17;1HPress SELECT to browse path");
-        printf("\x1b[18;1HPress START to exit");
+        printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
+        printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
+        printf("\x1b[17;1HPress A to start downloads");
+        printf("\x1b[18;1HPress X to view queue");
+        printf("\x1b[19;1HPress SELECT to browse path");
+        printf("\x1b[20;1HPress START to exit");
     } else {
         printf("\x1b[6;1HNo config file found!");
         printf("\x1b[8;1HPlease create:");
@@ -931,7 +980,7 @@ int main(int argc, char** argv) {
                 
                 // Return to main menu
                 consoleClear();
-                printf("\x1b[2;1HZip Extractor for 3DS");
+                printf("\x1b[2;1HArchive Extractor for 3DS");
                 printf("\x1b[4;1H================================");
                 printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
                 printf("\x1b[8;1HConfig file:");
@@ -941,10 +990,12 @@ int main(int argc, char** argv) {
                 if (queue.auto_retry) {
                     printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
                 }
-                printf("\x1b[15;1HPress A to start downloads");
-                printf("\x1b[16;1HPress X to view queue");
-                printf("\x1b[17;1HPress SELECT to browse path");
-                printf("\x1b[18;1HPress START to exit");
+                printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
+                printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
+                printf("\x1b[17;1HPress A to start downloads");
+                printf("\x1b[18;1HPress X to view queue");
+                printf("\x1b[19;1HPress SELECT to browse path");
+                printf("\x1b[20;1HPress START to exit");
             }
             
             if (kDown & KEY_B) {
@@ -952,7 +1003,7 @@ int main(int argc, char** argv) {
                 
                 // Return to main menu
                 consoleClear();
-                printf("\x1b[2;1HZip Extractor for 3DS");
+                printf("\x1b[2;1HArchive Extractor for 3DS");
                 printf("\x1b[4;1H================================");
                 printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
                 printf("\x1b[8;1HConfig file:");
@@ -962,10 +1013,12 @@ int main(int argc, char** argv) {
                 if (queue.auto_retry) {
                     printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
                 }
-                printf("\x1b[15;1HPress A to start downloads");
-                printf("\x1b[16;1HPress X to view queue");
-                printf("\x1b[17;1HPress SELECT to browse path");
-                printf("\x1b[18;1HPress START to exit");
+                printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
+                printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
+                printf("\x1b[17;1HPress A to start downloads");
+                printf("\x1b[18;1HPress X to view queue");
+                printf("\x1b[19;1HPress SELECT to browse path");
+                printf("\x1b[20;1HPress START to exit");
             }
         }
         
@@ -1006,7 +1059,7 @@ int main(int argc, char** argv) {
                 show_queue = false;
                 queue_page = 0;
                 consoleClear();
-                printf("\x1b[2;1HZip Extractor for 3DS");
+                printf("\x1b[2;1HArchive Extractor for 3DS");
                 printf("\x1b[4;1H================================");
                 printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
                 printf("\x1b[8;1HConfig file:");
@@ -1016,9 +1069,11 @@ int main(int argc, char** argv) {
                 if (queue.auto_retry) {
                     printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
                 }
-                printf("\x1b[15;1HPress A to start downloads");
-                printf("\x1b[16;1HPress X to view queue");
-                printf("\x1b[17;1HPress START to exit");
+                printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
+                printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
+                printf("\x1b[17;1HPress A to start downloads");
+                printf("\x1b[18;1HPress X to view queue");
+                printf("\x1b[19;1HPress START to exit");
             }
             
             if ((kDown & KEY_A) && !started) {
@@ -1068,7 +1123,7 @@ int main(int argc, char** argv) {
                 
                 do {
                     consoleClear();
-                    printf("\x1b[2;1HZip Extractor for 3DS");
+                    printf("\x1b[2;1HArchive Extractor for 3DS");
                     printf("\x1b[4;1H================================");
                     printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
                     if (retries > 0) {
@@ -1127,7 +1182,7 @@ int main(int argc, char** argv) {
             
             // Show summary
             consoleClear();
-            printf("\x1b[2;1HZip Extractor for 3DS");
+            printf("\x1b[2;1HArchive Extractor for 3DS");
             printf("\x1b[4;1H================================");
             
             if (cancelled) {

@@ -19,9 +19,15 @@ Thumbs.db
 *.tmp
 *.bak
 *.log
+build_output.txt
+final_build.log
 
 # Dependencies
 lib/
 
 # Debug files
 *.map
+
+# Documentation archive (keep but don't track changes)
+docs/archive/
+

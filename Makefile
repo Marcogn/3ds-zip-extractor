@@ -40,8 +40,8 @@ GRAPHICS	:=	gfx
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(BUILD)
 
-APP_TITLE	:=	Zip Extractor
-APP_DESCRIPTION	:=	Download and extract compressed files
+APP_TITLE	:=	Archive Extractor
+APP_DESCRIPTION	:=	Download and extract multiple formats
 APP_AUTHOR	:=	Marcogn
 ICON		:=	icon.png
 
@@ -61,9 +61,9 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-# Removed libarchive and compression libraries (linking issues)
-# Using download-only mode for now - extraction to be implemented with zlib
-LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lctru -lm
+# Multi-format archive support with libarchive
+# Supports: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD, 7Z, RAR (read-only)
+LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
