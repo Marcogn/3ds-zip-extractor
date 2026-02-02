@@ -61,8 +61,9 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-# Group libarchive and its dependencies to resolve circular dependencies
-LIBS	:= -lcitro2d -lcitro3d -Wl,--start-group -larchive -lzstd -llzma -lbz2 -Wl,--end-group -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lctru -lm
+# Removed libarchive and compression libraries (linking issues)
+# Using download-only mode for now - extraction to be implemented with zlib
+LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

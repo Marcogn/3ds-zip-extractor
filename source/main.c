@@ -6,8 +6,9 @@
 #include <sys/stat.h>
 #include <3ds.h>
 #include <curl/curl.h>
-#include <archive.h>
-#include <archive_entry.h>
+// TODO: Replace libarchive with simpler ZIP-only implementation
+// #include <archive.h>
+// #include <archive_entry.h>
 #include "gui.h"
 
 #define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
@@ -513,109 +514,87 @@ static Result download_file(const char* url, const char* output_path, bool* canc
 }
 
 // Extract archive with progress tracking
+// TODO: Implement ZIP extraction using zlib directly
+// For now, just skip extraction and save the downloaded file
 static Result extract_archive(const char* archive_path, const char* output_dir, int current, int total) {
-    struct archive* a;
-    struct archive* ext;
-    struct archive_entry* entry;
-    int r;
-    
     extract_data.extracted_files = 0;
     extract_data.current_size = 0;
-    
-    a = archive_read_new();
-    // Support multiple archive formats including 7zip
-    archive_read_support_format_zip(a);
-    archive_read_support_format_7zip(a);
-    archive_read_support_format_tar(a);
-    archive_read_support_format_gnutar(a);
-    archive_read_support_format_rar(a);
-    // Support common compression filters
-    archive_read_support_filter_gzip(a);
-    archive_read_support_filter_bzip2(a);
-    archive_read_support_filter_xz(a);
-    archive_read_support_filter_none(a);
-
-    ext = archive_write_disk_new();
-    archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME);
-    // Don't use set_standard_lookup as it requires POSIX functions (umask, getpwnam, getgrnam) not available on 3DS
-    // archive_write_disk_set_standard_lookup(ext);
-
-    if ((r = archive_read_open_filename(a, archive_path, 10240))) {
-        printf("Failed to open archive: %s\n", archive_error_string(a));
-        archive_read_free(a);
-        archive_write_free(ext);
-        return -1;
-    }
     
     consoleClear();
     printf("\x1b[2;1HZip Extractor for 3DS");
     printf("\x1b[4;1H================================");
-    printf("\x1b[6;1HExtracting archive...\n");
-    
-    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
-        const char* current_file = archive_entry_pathname(entry);
-        char full_path[512];
-        
-        snprintf(full_path, sizeof(full_path), "%s%s", output_dir, current_file);
-        archive_entry_set_pathname(entry, full_path);
-        
-        strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
-        extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
-        extract_data.current_size = archive_entry_size(entry);
-        
-        // Update display
-        consoleClear();
-        printf("\x1b[2;1HZip Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        if (total > 1) {
-            printf("\x1b[6;1HExtracting archive %d of %d", current, total);
-        } else {
-            printf("\x1b[6;1HExtracting...");
+    printf("\x1b[6;1H");
+
+    // For now, just copy the file to the output directory instead of extracting
+    printf("Archive downloaded successfully!\n\n");
+    printf("Location: %s\n\n", archive_path);
+
+    // Get filename from path
+    const char* filename = strrchr(archive_path, '/');
+    if (filename) {
+        filename++; // Skip the '/'
+    } else {
+        filename = archive_path;
+    }
+
+    // Create destination path
+    char dest_path[512];
+    snprintf(dest_path, sizeof(dest_path), "%s%s", output_dir, filename);
+
+    // Copy file
+    FILE* src = fopen(archive_path, "rb");
+    if (!src) {
+        printf("Error: Cannot open source file\n");
+        return -1;
+    }
+
+    FILE* dst = fopen(dest_path, "wb");
+    if (!dst) {
+        printf("Error: Cannot create destination file\n");
+        fclose(src);
+        return -1;
+    }
+
+    printf("Copying to: %s\n", dest_path);
+
+    char buffer[8192];
+    size_t bytes;
+    while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+        fwrite(buffer, 1, bytes, dst);
+
+        // Check for cancel
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+        if (kDown & KEY_B) {
+            fclose(src);
+            fclose(dst);
+            printf("\nCancelled by user\n");
+            return -2;
         }
-        printf("\x1b[8;1HFiles extracted: %llu", extract_data.extracted_files);
-        printf("\x1b[10;1HCurrent file:");
-        printf("\x1b[11;1H%.40s", extract_data.current_file);
-        printf("\x1b[13;1HPress B to cancel");
-        
+    }
+
+    fclose(src);
+    fclose(dst);
+
+    // Remove temp file
+    remove(archive_path);
+
+    printf("\nFile saved successfully!\n");
+    printf("\nNote: Extraction not yet implemented.\n");
+    printf("The archive has been saved to your SD card.\n");
+    printf("You can extract it manually on PC.\n\n");
+    printf("Press A to continue\n");
+
+    while (aptMainLoop()) {
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+        if (kDown & KEY_A) break;
         gfxFlushBuffers();
         gfxSwapBuffers();
         gspWaitForVBlank();
-        
-        r = archive_write_header(ext, entry);
-        if (r == ARCHIVE_OK) {
-            const void* buff;
-            size_t size;
-            la_int64_t offset;
-            
-            while ((r = archive_read_data_block(a, &buff, &size, &offset)) == ARCHIVE_OK) {
-                if (archive_write_data_block(ext, buff, size, offset) != ARCHIVE_OK) {
-                    printf("Write error: %s\n", archive_error_string(ext));
-                    break;
-                }
-                
-                // Check for cancel
-                hidScanInput();
-                u32 kDown = hidKeysDown();
-                if (kDown & KEY_B) {
-                    archive_read_free(a);
-                    archive_write_free(ext);
-                    return -2;
-                }
-            }
-            
-            if (r != ARCHIVE_EOF) {
-                printf("Read error: %s\n", archive_error_string(a));
-            }
-            
-            archive_write_finish_entry(ext);
-        }
-        
-        extract_data.extracted_files++;
     }
-    
-    archive_read_free(a);
-    archive_write_free(ext);
-    
+
+    extract_data.extracted_files = 1;
     return 0;
 }
 
