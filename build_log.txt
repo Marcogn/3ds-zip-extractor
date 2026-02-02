@@ -1,3 +1,0 @@
-gui.c
-main.c
-linking 3ds-zip-extractor.elf
