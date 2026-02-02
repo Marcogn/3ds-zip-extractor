@@ -35,9 +35,17 @@
 - **Download Queue Management**: View queue status, skip failed items, retry downloads
 - **File Browser**: Browse and select extraction destination folder
 - **Auto-Retry**: Automatically retry failed downloads with configurable attempts
-- **Google Drive Support**: Automatically converts Google Drive URLs to direct download links
-  - **NEW:** Enhanced support for files >100MB with automatic virus scan confirmation
-- **Multiple Archive Formats**: Supports ZIP, TAR, 7Z, and many other formats via libarchive
+- **🌟 Enhanced Google Drive Support**: 
+  - Automatically converts Google Drive URLs to direct download links
+  - Support for multiple URL formats (`/file/d/`, `/open?id=`, `/uc?id=`)
+  - **Automatic virus scan bypass** for files >100MB using `confirm=t` parameter
+  - Warning for unsupported folder URLs
+- **🌟 Extended Archive Format Support**:
+  - **ZIP** (.zip) - with all compression methods (deflate, bzip2, lzma, etc.)
+  - **7-Zip** (.7z) - full support
+  - **TAR** (.tar, .tar.gz, .tar.bz2, .tar.xz) - all variants
+  - **RAR** (.rar) - read support
+  - And many more via libarchive
 - **Resume Support**: Automatically resumes interrupted downloads
 - **Large File Handling**: Efficient streaming for large files
 - **Progress Tracking**: Real-time download and extraction progress display with graphical bars
@@ -259,18 +267,59 @@ The application uses streaming for both download and extraction, meaning it does
 
 ### Google Drive Support
 
-Google Drive URLs are automatically detected and converted to direct download links. Supported formats:
+Google Drive URLs are automatically detected and converted to direct download links. 
+
+#### Supported URL Formats:
 - `https://drive.google.com/file/d/FILE_ID/view`
+- `https://drive.google.com/file/d/FILE_ID/edit`  
 - `https://drive.google.com/open?id=FILE_ID`
+- `https://drive.google.com/uc?id=FILE_ID`
+
+#### Large File Support (>100MB):
+For files larger than 100MB, Google Drive shows a virus scan warning page. The application automatically adds the `confirm=t` parameter to bypass this warning and download the file directly.
+
+**Example:**
+```
+Original: https://drive.google.com/file/d/1ABC...XYZ/view
+Converted: https://drive.google.com/uc?export=download&id=1ABC...XYZ&confirm=t
+```
+
+#### Limitations:
+- Folder URLs are **not supported** (only individual files)
+- Files must be publicly accessible or have "Anyone with the link" permission
+- Very large files (>multiple GB) may timeout depending on your connection
 
 ### Supported Archive Formats
 
 Via libarchive, the following formats are supported:
-- ZIP (.zip)
-- TAR (.tar, .tar.gz, .tar.bz2, .tar.xz)
-- 7-Zip (.7z)
-- RAR (.rar)
-- And many more...
+
+#### Fully Supported:
+- **ZIP** (.zip) - All compression methods:
+  - Store (uncompressed)
+  - Deflate (most common)
+  - BZIP2
+  - LZMA
+  - PPMD
+- **7-Zip** (.7z) - Full support with all compression methods
+- **TAR** (.tar) - Uncompressed and compressed variants:
+  - .tar.gz (gzip)
+  - .tar.bz2 (bzip2)
+  - .tar.xz (lzma)
+- **GZIP** (.gz) - Single file compression
+- **BZIP2** (.bz2) - Single file compression
+
+#### Read-Only Support:
+- **RAR** (.rar) - Extraction only (no creation)
+- **ISO** (.iso) - ISO9660 format
+
+#### Note on Compression Algorithms:
+The application supports various compression algorithms through libarchive:
+- **DEFLATE**: Standard, fast, good compression
+- **BZIP2**: Better compression, slower
+- **LZMA/XZ**: Best compression, slowest
+- **ZSTD**: Modern, fast, good compression
+
+**⚠️ Current Limitation**: Due to devkitPro toolchain issues, advanced compression support (BZIP2, LZMA, ZSTD) is currently unavailable. See [COMPILATION_ISSUES.md](COMPILATION_ISSUES.md) for details.
 
 ## Troubleshooting
 

@@ -312,7 +312,6 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
     // Check if it's a Google Drive URL
     if (strstr(input_url, "drive.google.com") != NULL) {
         // Extract file ID from various Google Drive URL formats
-        const char* file_id = NULL;
         char* id_start = NULL;
         
         // Format: https://drive.google.com/file/d/FILE_ID/view
@@ -324,8 +323,8 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
                 char file_id_buf[256];
                 strncpy(file_id_buf, id_start, id_len);
                 file_id_buf[id_len] = '\0';
-                // Use confirm parameter for large files
-                snprintf(output_url, output_size, 
+                // Use confirm parameter for large files (>100MB) to bypass virus scan warning
+                snprintf(output_url, output_size,
                          "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
                          file_id_buf);
                 return;
@@ -333,18 +332,21 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
         }
         
         // Format: https://drive.google.com/open?id=FILE_ID
+        // Format: https://drive.google.com/uc?id=FILE_ID
         if ((id_start = strstr(input_url, "id=")) != NULL) {
             id_start += 3; // Skip "id="
-            char* id_end = strchr(id_start, '&');
+            char* id_end = strpbrk(id_start, "&/ \t\n\r");
             if (id_end) {
                 size_t id_len = id_end - id_start;
                 char file_id_buf[256];
-                strncpy(file_id_buf, id_start, id_len);
-                file_id_buf[id_len] = '\0';
-                snprintf(output_url, output_size, 
-                         "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
-                         file_id_buf);
-                return;
+                if (id_len > 0 && id_len < sizeof(file_id_buf)) {
+                    strncpy(file_id_buf, id_start, id_len);
+                    file_id_buf[id_len] = '\0';
+                    snprintf(output_url, output_size,
+                             "https://drive.google.com/uc?export=download&id=%s&confirm=t",
+                             file_id_buf);
+                    return;
+                }
             } else {
                 // ID is at the end of URL
                 snprintf(output_url, output_size, 
@@ -352,6 +354,11 @@ static void convert_gdrive_url(const char* input_url, char* output_url, size_t o
                          id_start);
                 return;
             }
+        }
+
+        // Format: https://drive.google.com/drive/folders/... (not supported for download)
+        if (strstr(input_url, "/folders/") != NULL) {
+            printf("Warning: Folder URLs are not supported, only direct file links\n");
         }
     }
     
@@ -516,12 +523,16 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
     extract_data.current_size = 0;
     
     a = archive_read_new();
-    // Support common formats to avoid complex dependencies
+    // Support multiple archive formats including 7zip
     archive_read_support_format_zip(a);
+    archive_read_support_format_7zip(a);
     archive_read_support_format_tar(a);
     archive_read_support_format_gnutar(a);
-    // Support common filters
+    archive_read_support_format_rar(a);
+    // Support common compression filters
     archive_read_support_filter_gzip(a);
+    archive_read_support_filter_bzip2(a);
+    archive_read_support_filter_xz(a);
     archive_read_support_filter_none(a);
 
     ext = archive_write_disk_new();
