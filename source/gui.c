@@ -125,11 +125,11 @@ void gui_draw_main_menu(int url_count, const char* config_path, const char* extr
         C2D_TextOptimize(&text);
         C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
     } else {
-        C2D_TextParse(&text, g_textBuf, "No config file found!");
+        C2D_TextParse(&text, g_textBuf, "No URLs in config file!");
         C2D_TextOptimize(&text);
         C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.45f, 0.45f, COLOR_ERROR);
         y += 20;
-        C2D_TextParse(&text, g_textBuf, "Please create:");
+        C2D_TextParse(&text, g_textBuf, "Edit your config file:");
         C2D_TextOptimize(&text);
         C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
         y += 14;
@@ -138,25 +138,25 @@ void gui_draw_main_menu(int url_count, const char* config_path, const char* extr
         C2D_TextOptimize(&text);
         C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
         y += 20;
-        C2D_TextParse(&text, g_textBuf, "Example config.txt:");
+        C2D_TextParse(&text, g_textBuf, "Add URLs (one per line):");
         C2D_TextOptimize(&text);
         C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
         y += 14;
-        C2D_TextParse(&text, g_textBuf, "  extract_path=/extracted/");
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-        y += 12;
-        C2D_TextParse(&text, g_textBuf, "  auto_retry=true");
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-        y += 12;
         C2D_TextParse(&text, g_textBuf, "  https://example.com/file.zip");
         C2D_TextOptimize(&text);
         C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+        y += 12;
+        C2D_TextParse(&text, g_textBuf, "  https://drive.google.com/...");
+        C2D_TextOptimize(&text);
+        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+        y += 20;
+        C2D_TextParse(&text, g_textBuf, "Then restart the app.");
+        C2D_TextOptimize(&text);
+        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
         y += 20;
         C2D_TextParse(&text, g_textBuf, "START: Exit");
         C2D_TextOptimize(&text);
-        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
+        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_PROGRESS);
     }
     // BOTTOM SCREEN
     C2D_TargetClear(g_bottom, COLOR_BG);

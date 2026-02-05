@@ -985,10 +985,18 @@ int main(int argc, char** argv) {
     mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
 
-    gui_draw_status("Archive Extractor for 3DS", "Loading configuration...");
+    gui_draw_status("Archive Extractor for 3DS", "Reading config file...");
 
     // Try to read configuration file
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
+
+    // Debug: show what we found
+    if (url_count >= 0) {
+        char debugMsg[64];
+        snprintf(debugMsg, sizeof(debugMsg), "Found %d URL(s). Loading menu...", url_count);
+        gui_draw_status("Archive Extractor for 3DS", debugMsg);
+        for (int i = 0; i < 30; i++) gspWaitForVBlank(); // Small delay to see message
+    }
 
     // If config doesn't exist, create an example one and EXIT
     if (url_count < 0) {
