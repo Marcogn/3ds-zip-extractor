@@ -2,23 +2,24 @@
 #define GUI_H
 
 #include <3ds.h>
+#include <citro2d.h>
 #include <stdbool.h>
 
-// Console-only mode for maximum stability
-// GPU rendering disabled
+// Dark blue theme colors (similar to fast-uninstall style)
+#define COLOR_BG        C2D_Color32(20, 20, 30, 255)
+#define COLOR_PANEL     C2D_Color32(30, 30, 40, 255)
+#define COLOR_TEXT      C2D_Color32(255, 255, 255, 255)
+#define COLOR_ACCENT    C2D_Color32(100, 180, 255, 255)
+#define COLOR_SUCCESS   C2D_Color32(76, 175, 80, 255)
+#define COLOR_ERROR     C2D_Color32(244, 67, 54, 255)
+#define COLOR_PENDING   C2D_Color32(150, 150, 150, 255)
+#define COLOR_PROGRESS  C2D_Color32(255, 200, 100, 255)
 
-// Dummy colors (not used in console mode)
-#define COLOR_BG        0
-#define COLOR_PANEL     0
-#define COLOR_TEXT      0
-#define COLOR_ACCENT    0
-#define COLOR_SUCCESS   0
-#define COLOR_ERROR     0
-#define COLOR_PENDING   0
-#define COLOR_PROGRESS  0
-
-// GUI state (minimal for compatibility)
+// GUI state matching fast-uninstall structure
 typedef struct {
+    C3D_RenderTarget* top;
+    C3D_RenderTarget* bottom;
+    C2D_TextBuf textBuf;
     bool initialized;
 } GUI;
 
@@ -33,7 +34,7 @@ void gui_begin_frame(GUI* gui);
 void gui_end_frame(GUI* gui);
 
 // Drawing functions
-void gui_draw_progress_bar(float x, float y, float width, float height,
+void gui_draw_progress_bar(GUI* gui, float x, float y, float width, float height,
                            float progress, u32 color_fill, u32 color_bg);
 void gui_draw_download_progress(float progress, u64 downloaded, u64 total);
 void gui_draw_extraction_progress(u64 files_extracted, const char* current_file);

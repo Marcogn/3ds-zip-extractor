@@ -472,26 +472,78 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     return 0;
 }
 
-// Update download progress display (console only)
+// Update download progress display using C2D (like fast-uninstall)
 static void update_download_display(int current, int total, DownloadData* data, const char* url) {
-    // Console-only mode for stability
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
+    if (!g_use_gui) return;
+
+    gui_begin_frame(&g_gui);
+
+    // TOP SCREEN - Download info
+    C2D_TargetClear(g_gui.top, COLOR_BG);
+    C2D_SceneBegin(g_gui.top);
+
+    C2D_TextBufClear(g_gui.textBuf);
+    C2D_Text text;
+    float y = 10.0f;
+
+    // Title
+    C2D_TextParse(&text, g_gui.textBuf, "Archive Extractor for 3DS");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.5f, 0.5f, COLOR_ACCENT);
+    y += 25;
+
+    // Divider line
+    C2D_DrawRectSolid(10, y, 0.5f, 380, 2, COLOR_ACCENT);
+    y += 10;
+
+    // Download status
+    char statusText[64];
     if (total > 1) {
-        printf("\x1b[6;1HDownloading file %d of %d", current, total);
+        snprintf(statusText, sizeof(statusText), "Downloading file %d of %d", current, total);
     } else {
-        printf("\x1b[6;1HDownloading...");
+        snprintf(statusText, sizeof(statusText), "Downloading...");
     }
-    printf("\x1b[8;1HURL: %.45s", url);
+    C2D_TextParse(&text, g_gui.textBuf, statusText);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.45f, 0.45f, COLOR_TEXT);
+    y += 25;
+
+    // URL (truncated)
+    char urlShort[50];
+    snprintf(urlShort, sizeof(urlShort), "%.47s...", url);
+    C2D_TextParse(&text, g_gui.textBuf, urlShort);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_PENDING);
+    y += 25;
+
+    // Progress info
     if (data->total > 0) {
-        printf("\x1b[10;1HProgress: %.2f MB / %.2f MB", 
-               (data->downloaded) / (1024.0 * 1024.0),
-               (data->total) / (1024.0 * 1024.0));
-        printf("\x1b[11;1HPercentage: %.1f%%", 
-               (data->downloaded * 100.0) / data->total);
+        char progressText[128];
+        snprintf(progressText, sizeof(progressText), "%.2f MB / %.2f MB  (%.1f%%)",
+                 (data->downloaded) / (1024.0 * 1024.0),
+                 (data->total) / (1024.0 * 1024.0),
+                 (data->downloaded * 100.0) / data->total);
+        C2D_TextParse(&text, g_gui.textBuf, progressText);
+        C2D_TextOptimize(&text);
+        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.42f, 0.42f, COLOR_TEXT);
+        y += 20;
+
+        // Progress bar
+        float progress = (float)data->downloaded / (float)data->total;
+        gui_draw_progress_bar(&g_gui, 10, y, 380, 20, progress, COLOR_PROGRESS, COLOR_PANEL);
+        y += 30;
     }
-    printf("\x1b[13;1HPress B to cancel");
+
+    // Controls
+    C2D_TextParse(&text, g_gui.textBuf, "Press B to cancel");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, C2D_Color32(255, 200, 100, 255));
+
+    // BOTTOM SCREEN - can be used for additional info
+    C2D_TargetClear(g_gui.bottom, COLOR_BG);
+    C2D_SceneBegin(g_gui.bottom);
+
+    gui_end_frame(&g_gui);
     gfxFlushBuffers();
     gfxSwapBuffers();
     gspWaitForVBlank();
@@ -896,20 +948,27 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 }
 
 int main(int argc, char** argv) {
-    // Initialize services
+    // Initialize graphics (exactly like fast-uninstall)
     gfxInitDefault();
-    consoleInit(GFX_TOP, NULL);
 
     // Initialize PTMU for LED notifications
     ptmuInit();
 
-    // Check if we're running on real hardware or emulator
-    if (!aptMainLoop()) {
-        printf("Failed to initialize APT service\n");
-        printf("Press any button to exit...\n");
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
+    // Initialize GUI with citro2d/citro3d
+    g_use_gui = gui_init(&g_gui);
+
+    if (!g_use_gui) {
+        // Fallback to console if GUI fails
+        consoleInit(GFX_TOP, NULL);
+        printf("GUI initialization failed!\n");
+        printf("Press START to exit\n");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
         ptmuExit();
         gfxExit();
         return 1;
@@ -918,15 +977,6 @@ int main(int argc, char** argv) {
     // Enable sleep mode support (continue downloads in background)
     enable_sleep_mode();
 
-    // Try to initialize GUI (will fail and use console - intended)
-    g_use_gui = gui_init(&g_gui);
-
-    // Always use console mode for stability
-    printf("\x1b[1;1HArchive Extractor for 3DS");
-    printf("\x1b[2;1HInitializing...\n");
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
 
     // Initialize networking
     Result ret = 0;
