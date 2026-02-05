@@ -68,33 +68,6 @@ static void led_notification_off() {
     set_led_notification(0);
 }
 
-// Helper function to show status messages without flickering
-static void show_status_message(const char* title, const char* message) {
-    if (!g_use_gui) return;
-
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-
-    C2D_TargetClear(g_gui.top, COLOR_BG);
-    C2D_SceneBegin(g_gui.top);
-
-    C2D_TextBufClear(g_gui.textBuf);
-    C2D_Text text;
-
-    // Title
-    C2D_TextParse(&text, g_gui.textBuf, title);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, 10.0f, 0.5f, 0.5f, 0.5f, COLOR_ACCENT);
-
-    // Message
-    C2D_TextParse(&text, g_gui.textBuf, message);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, 40.0f, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
-
-    C2D_TargetClear(g_gui.bottom, COLOR_BG);
-    C2D_SceneBegin(g_gui.bottom);
-
-    C3D_FrameEnd(0);
-}
 
 // Download states for queue management
 typedef enum {
@@ -502,81 +475,9 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     return 0;
 }
 
-// Update download progress display using C2D (like fast-uninstall)
+// Update download progress display using GUI (like fast-uninstall)
 static void update_download_display(int current, int total, DownloadData* data, const char* url) {
-    if (!g_use_gui) return;
-
-    gui_begin_frame(&g_gui);
-
-    // TOP SCREEN - Download info
-    C2D_TargetClear(g_gui.top, COLOR_BG);
-    C2D_SceneBegin(g_gui.top);
-
-    C2D_TextBufClear(g_gui.textBuf);
-    C2D_Text text;
-    float y = 10.0f;
-
-    // Title
-    C2D_TextParse(&text, g_gui.textBuf, "Archive Extractor for 3DS");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.5f, 0.5f, COLOR_ACCENT);
-    y += 25;
-
-    // Divider line
-    C2D_DrawRectSolid(10, y, 0.5f, 380, 2, COLOR_ACCENT);
-    y += 10;
-
-    // Download status
-    char statusText[64];
-    if (total > 1) {
-        snprintf(statusText, sizeof(statusText), "Downloading file %d of %d", current, total);
-    } else {
-        snprintf(statusText, sizeof(statusText), "Downloading...");
-    }
-    C2D_TextParse(&text, g_gui.textBuf, statusText);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.45f, 0.45f, COLOR_TEXT);
-    y += 25;
-
-    // URL (truncated)
-    char urlShort[50];
-    snprintf(urlShort, sizeof(urlShort), "%.47s...", url);
-    C2D_TextParse(&text, g_gui.textBuf, urlShort);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_PENDING);
-    y += 25;
-
-    // Progress info
-    if (data->total > 0) {
-        char progressText[128];
-        snprintf(progressText, sizeof(progressText), "%.2f MB / %.2f MB  (%.1f%%)",
-                 (data->downloaded) / (1024.0 * 1024.0),
-                 (data->total) / (1024.0 * 1024.0),
-                 (data->downloaded * 100.0) / data->total);
-        C2D_TextParse(&text, g_gui.textBuf, progressText);
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.42f, 0.42f, COLOR_TEXT);
-        y += 20;
-
-        // Progress bar
-        float progress = (float)data->downloaded / (float)data->total;
-        gui_draw_progress_bar(&g_gui, 10, y, 380, 20, progress, COLOR_PROGRESS, COLOR_PANEL);
-        y += 30;
-    }
-
-    // Controls
-    C2D_TextParse(&text, g_gui.textBuf, "Press B to cancel");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, C2D_Color32(255, 200, 100, 255));
-
-    // BOTTOM SCREEN - can be used for additional info
-    C2D_TargetClear(g_gui.bottom, COLOR_BG);
-    C2D_SceneBegin(g_gui.bottom);
-
-    gui_end_frame(&g_gui);
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
+    gui_draw_download(current, total, url, data->downloaded, data->total);
 }
 
 // Download file with resume support
@@ -978,41 +879,20 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 }
 
 int main(int argc, char** argv) {
-    // Initialize graphics (EXACTLY like fast-uninstall - direct calls, no gui_init)
+    // Initialize graphics (like fast-uninstall)
     gfxInitDefault();
-    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    C2D_Prepare();
 
-    // Create render targets for top and bottom screens
-    g_gui.top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
-    g_gui.bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    // Initialize GUI with citro2d
+    g_use_gui = gui_init(&g_gui);
 
-    // Create text buffer for dynamic text rendering
-    g_gui.textBuf = C2D_TextBufNew(4096);
-
-    if (!g_gui.top || !g_gui.bottom || !g_gui.textBuf) {
-        // Critical failure - cannot continue without GUI
-        gfxInitDefault();
-        consoleInit(GFX_TOP, NULL);
-        printf("CRITICAL: Failed to initialize graphics!\n");
-        printf("Press START to exit\n");
-        while (aptMainLoop()) {
-            hidScanInput();
-            if (hidKeysDown() & KEY_START) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
-        }
+    if (!g_use_gui) {
+        // Cannot continue without GUI
         gfxExit();
         return 1;
     }
 
-    g_gui.initialized = true;
-    g_use_gui = true;
-
-    // Show initial screen
-    show_status_message("Archive Extractor for 3DS", "Initializing...");
+    // Show initializing screen
+    gui_draw_status("Archive Extractor for 3DS", "Initializing...");
 
     // Initialize PTMU for LED notifications
     ptmuInit();
@@ -1020,22 +900,18 @@ int main(int argc, char** argv) {
     // Enable sleep mode support (continue downloads in background)
     enable_sleep_mode();
 
-    // Show network initialization status
-    show_status_message("Archive Extractor for 3DS", "Initializing network...");
+    gui_draw_status("Archive Extractor for 3DS", "Initializing network...");
 
     // Initialize networking
     Result ret = 0;
     u32* socMemory = (u32*)memalign(0x1000, 0x100000);
     if (!socMemory) {
-        printf("\nFailed to allocate socket memory!\n");
-        printf("Press START to exit\n");
+        gui_draw_error("Error", "Failed to allocate socket memory!");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_START) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
         }
+        gui_cleanup(&g_gui);
         ptmuExit();
         gfxExit();
         return 1;
@@ -1043,31 +919,26 @@ int main(int argc, char** argv) {
     
     ret = socInit(socMemory, 0x100000);
     if (ret != 0) {
-        show_status_message("Archive Extractor for 3DS", "Network initialization FAILED!");
-        // Wait a bit so user can see the error
-        for(int i = 0; i < 60; i++) {
-            gspWaitForVBlank();
+        gui_draw_error("Network Error", "Failed to initialize network!");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
         }
-
         free(socMemory);
-        C2D_TextBufDelete(g_gui.textBuf);
-        C2D_Fini();
-        C3D_Fini();
+        gui_cleanup(&g_gui);
         ptmuExit();
         gfxExit();
         return 1;
     }
     
-    // Show curl initialization
-    show_status_message("Archive Extractor for 3DS", "Initializing download system...");
+    gui_draw_status("Archive Extractor for 3DS", "Initializing downloads...");
 
     // Initialize curl
     curl_global_init(CURL_GLOBAL_ALL);
     
     const char* extract_path = DEFAULT_EXTRACT_PATH;
 
-    // Show memory allocation
-    show_status_message("Archive Extractor for 3DS", "Allocating memory...");
+    gui_draw_status("Archive Extractor for 3DS", "Loading configuration...");
 
     // Allocate queue on heap to avoid stack overflow (structure is very large)
     DownloadQueue* queue = (DownloadQueue*)calloc(1, sizeof(DownloadQueue));
@@ -1097,11 +968,16 @@ int main(int argc, char** argv) {
     ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
     
-    // Show config loading
-    show_status_message("Archive Extractor for 3DS", "Loading configuration...");
+    printf("\x1b[6;1HLoading config...\n");
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
 
     // Try to read configuration file
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
+
+    // Clear screen for main menu
+    consoleClear();
 
     // If config doesn't exist, create an example one
     if (url_count < 0) {
@@ -1577,12 +1453,6 @@ exit_loop:
     socExit();
     free(socMemory);
     
-    // Cleanup (exactly like fast-uninstall)
-    if (g_gui.textBuf) {
-        C2D_TextBufDelete(g_gui.textBuf);
-    }
-    C2D_Fini();
-    C3D_Fini();
 
     // Cleanup PTMU
     ptmuExit();

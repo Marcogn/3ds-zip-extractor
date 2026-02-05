@@ -62,7 +62,7 @@ LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 # Multi-format archive support with libarchive
 # Supports: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD, 7Z, RAR (read-only)
-# GPU rendering with citro2d/citro3d (like 3ds-fast-uninstall)
+# GPU rendering with citro2d/citro3d (like fast-uninstall)
 LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
