@@ -1,24 +1,24 @@
 #ifndef GUI_H
 #define GUI_H
 
-#include <citro2d.h>
-#include <citro3d.h>
 #include <3ds.h>
+#include <stdbool.h>
 
-// Dark blue theme colors
-#define COLOR_BG        C2D_Color32(15, 20, 40, 255)      // Blu scuro per sfondo
-#define COLOR_PANEL     C2D_Color32(25, 35, 60, 255)      // Pannelli
-#define COLOR_TEXT      C2D_Color32(255, 255, 255, 255)   // Testo bianco
-#define COLOR_ACCENT    C2D_Color32(60, 120, 240, 255)    // Blu chiaro accento
-#define COLOR_SUCCESS   C2D_Color32(76, 175, 80, 255)     // Verde successo
-#define COLOR_ERROR     C2D_Color32(244, 67, 54, 255)     // Rosso errore
-#define COLOR_PENDING   C2D_Color32(120, 130, 150, 255)   // Grigio pending
-#define COLOR_PROGRESS  C2D_Color32(100, 180, 255, 255)   // Blu progress
+// Console-only mode for maximum stability
+// GPU rendering disabled
 
-// GUI state
+// Dummy colors (not used in console mode)
+#define COLOR_BG        0
+#define COLOR_PANEL     0
+#define COLOR_TEXT      0
+#define COLOR_ACCENT    0
+#define COLOR_SUCCESS   0
+#define COLOR_ERROR     0
+#define COLOR_PENDING   0
+#define COLOR_PROGRESS  0
+
+// GUI state (minimal for compatibility)
 typedef struct {
-    C3D_RenderTarget* top_screen;
-    C3D_RenderTarget* bottom_screen;
     bool initialized;
 } GUI;
 

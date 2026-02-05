@@ -1,121 +1,36 @@
 #include "gui.h"
 #include <stdio.h>
 #include <string.h>
-
-// Initialize the GUI system with citro3d/citro2d
+// Initialize GUI (console-only mode for stability)
 bool gui_init(GUI* gui) {
     if (!gui) return false;
-    
-    // Initialize citro3d
-    if (!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE)) {
-        return false;
-    }
-
-    // Initialize citro2d
-    if (!C2D_Init(C2D_DEFAULT_MAX_OBJECTS)) {
-        C3D_Fini();
-        return false;
-    }
-
-    C2D_Prepare();
-
-    // Create render targets for both screens
-    gui->top_screen = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
-    gui->bottom_screen = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-
-    if (!gui->top_screen || !gui->bottom_screen) {
-        C2D_Fini();
-        C3D_Fini();
-        return false;
-    }
-
-    gui->initialized = true;
-    return true;
+    // Console mode only - GPU rendering disabled for stability
+    gui->initialized = false;
+    return false; // Always return false to force console mode
 }
-
 // Cleanup GUI resources
 void gui_cleanup(GUI* gui) {
-    if (!gui || !gui->initialized) return;
-
-    C2D_Fini();
-    C3D_Fini();
-
+    if (!gui) return;
     gui->initialized = false;
 }
-
-// Begin rendering frame
+// Begin rendering frame (no-op in console mode)
 void gui_begin_frame(GUI* gui) {
-    if (!gui || !gui->initialized) return;
-
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    // Console mode - no GPU rendering
 }
-
-// End rendering frame and display
+// End rendering frame (no-op in console mode)
 void gui_end_frame(GUI* gui) {
-    if (!gui || !gui->initialized) return;
-
-    C3D_FrameEnd(0);
+    // Console mode - no GPU rendering
 }
-
-// Draw a filled rectangle
-static void draw_rectangle(float x, float y, float width, float height, u32 color) {
-    C2D_DrawRectSolid(x, y, 0.5f, width, height, color);
-}
-
-// Draw rectangle with border
-static void draw_panel(float x, float y, float width, float height, u32 bg_color, u32 border_color) {
-    // Background
-    draw_rectangle(x, y, width, height, bg_color);
-
-    // Border
-    draw_rectangle(x, y, width, 2, border_color);                    // Top
-    draw_rectangle(x, y + height - 2, width, 2, border_color);       // Bottom
-    draw_rectangle(x, y, 2, height, border_color);                   // Left
-    draw_rectangle(x + width - 2, y, 2, height, border_color);       // Right
-}
-
-// Draw a progress bar
-void gui_draw_progress_bar(float x, float y, float width, float height,
+// Draw progress bar (no-op in console mode)
+void gui_draw_progress_bar(float x, float y, float width, float height, 
                            float progress, u32 color_fill, u32 color_bg) {
-    // Clamp progress
-    if (progress < 0.0f) progress = 0.0f;
-    if (progress > 1.0f) progress = 1.0f;
-
-    // Background panel
-    draw_panel(x, y, width, height, color_bg, COLOR_ACCENT);
-
-    // Progress fill
-    if (progress > 0.0f) {
-        float fill_width = (width - 8) * progress;
-        draw_rectangle(x + 4, y + 4, fill_width, height - 8, color_fill);
-    }
+    // Console mode - progress shown via printf
 }
-
-
-// Draw download progress on bottom screen
+// Draw download progress (no-op in console mode)
 void gui_draw_download_progress(float progress, u64 downloaded, u64 total) {
-    // Progress bar
-    float bar_x = 20.0f;
-    float bar_y = 160.0f;
-    float bar_width = 280.0f;
-    float bar_height = 40.0f;
-
-    gui_draw_progress_bar(bar_x, bar_y, bar_width, bar_height,
-                         progress, COLOR_PROGRESS, COLOR_PENDING);
+    // Console mode - progress shown via printf
 }
-
-// Draw extraction progress on bottom screen
+// Draw extraction progress (no-op in console mode)
 void gui_draw_extraction_progress(u64 files_extracted, const char* current_file) {
-    // Animated progress bar
-    static float anim_progress = 0.0f;
-    anim_progress += 0.02f;
-    if (anim_progress > 1.0f) anim_progress = 0.0f;
-
-    float bar_x = 20.0f;
-    float bar_y = 160.0f;
-    float bar_width = 280.0f;
-    float bar_height = 40.0f;
-
-    gui_draw_progress_bar(bar_x, bar_y, bar_width, bar_height,
-                         anim_progress, COLOR_SUCCESS, COLOR_PENDING);
+    // Console mode - progress shown via printf
 }

@@ -472,44 +472,9 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     return 0;
 }
 
-// Update download progress display with GUI
+// Update download progress display (console only)
 static void update_download_display(int current, int total, DownloadData* data, const char* url) {
-    if (g_use_gui) {
-        // Full graphical mode
-        gui_begin_frame(&g_gui);
-
-        // Top screen - Title and info
-        C2D_TargetClear(g_gui.top_screen, COLOR_BG);
-        C2D_SceneBegin(g_gui.top_screen);
-
-        // Title bar (blu più chiaro)
-        C2D_DrawRectSolid(10, 10, 0.5f, 380, 40, COLOR_PANEL);
-        C2D_DrawRectSolid(10, 10, 0.5f, 380, 2, COLOR_ACCENT);
-        C2D_DrawRectSolid(10, 48, 0.5f, 380, 2, COLOR_ACCENT);
-
-        // Info panel
-        C2D_DrawRectSolid(10, 60, 0.5f, 380, 100, COLOR_PANEL);
-        C2D_DrawRectSolid(10, 60, 0.5f, 380, 2, COLOR_ACCENT);
-        C2D_DrawRectSolid(10, 158, 0.5f, 380, 2, COLOR_ACCENT);
-
-        // Bottom screen - Progress
-        C2D_TargetClear(g_gui.bottom_screen, COLOR_BG);
-        C2D_SceneBegin(g_gui.bottom_screen);
-
-        // Progress panel
-        C2D_DrawRectSolid(10, 20, 0.5f, 300, 200, COLOR_PANEL);
-        C2D_DrawRectSolid(10, 20, 0.5f, 300, 2, COLOR_ACCENT);
-
-        // Progress bar
-        if (data->total > 0) {
-            float progress = (float)data->downloaded / (float)data->total;
-            gui_draw_progress_bar(20, 140, 280, 40, progress, COLOR_PROGRESS, COLOR_PENDING);
-        }
-
-        gui_end_frame(&g_gui);
-    }
-
-    // Console overlay for text (hybrid mode)
+    // Console-only mode for stability
     consoleClear();
     printf("\x1b[2;1HArchive Extractor for 3DS");
     printf("\x1b[4;1H================================");
@@ -933,13 +898,13 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 int main(int argc, char** argv) {
     // Initialize services
     gfxInitDefault();
+    consoleInit(GFX_TOP, NULL);
 
     // Initialize PTMU for LED notifications
     ptmuInit();
 
     // Check if we're running on real hardware or emulator
     if (!aptMainLoop()) {
-        consoleInit(GFX_TOP, NULL);
         printf("Failed to initialize APT service\n");
         printf("Press any button to exit...\n");
         gfxFlushBuffers();
@@ -953,14 +918,16 @@ int main(int argc, char** argv) {
     // Enable sleep mode support (continue downloads in background)
     enable_sleep_mode();
 
-    // Initialize GUI (citro2d/citro3d)
+    // Try to initialize GUI (will fail and use console - intended)
     g_use_gui = gui_init(&g_gui);
-    if (!g_use_gui) {
-        // Fallback to console if GUI fails
-        consoleInit(GFX_TOP, NULL);
-        printf("GUI init failed, using console mode\n");
-    }
-    
+
+    // Always use console mode for stability
+    printf("\x1b[1;1HArchive Extractor for 3DS");
+    printf("\x1b[2;1HInitializing...\n");
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
+
     // Initialize networking
     Result ret = 0;
     u32* socMemory = (u32*)memalign(0x1000, 0x100000);

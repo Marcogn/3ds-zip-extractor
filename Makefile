@@ -42,8 +42,7 @@ GRAPHICS	:=	gfx
 
 APP_TITLE	:=	3DS Zip Extractor
 APP_DESCRIPTION	:=	Download and extract archives
-APP_AUTHOR	:=	Homebrew
-ICON		:=	icon.png
+APP_AUTHOR	:=	Marcogn
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -63,8 +62,8 @@ LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 # Multi-format archive support with libarchive
 # Supports: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD, 7Z, RAR (read-only)
-# GPU rendering enabled with citro2d/citro3d
-LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
+# Console-only mode for stability (citro2d/citro3d disabled)
+LIBS	:= -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
