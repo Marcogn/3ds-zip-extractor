@@ -1,8 +1,10 @@
 # Build directories
-build/
-*.3dsx
+build/*.o
+build/*.d
+build/*.map
+build/*.lst
 *.elf
-*.smdh
+# *.smdh - REMOVED: We need to commit the SMDH file for the build to work
 
 # Editor files
 *.swp
@@ -25,9 +27,6 @@ final_build.log
 # Dependencies
 lib/
 
-# Debug files
-*.map
 
-# Documentation archive (keep but don't track changes)
-docs/archive/
-
+# Nested duplicated directories
+_codeql_detected_source_root/

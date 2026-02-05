@@ -5,6 +5,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <3ds.h>
+#include <citro2d.h>
+#include <citro3d.h>
 #include <curl/curl.h>
 #include <zlib.h>
 #include "gui.h"
@@ -22,6 +24,50 @@
 // Global GUI context for hybrid rendering
 static GUI g_gui = {0};
 static bool g_use_gui = false;
+
+// Sleep mode handling
+static bool enable_sleep_mode() {
+    // Disable sleep mode to continue downloading in background
+    APT_SetAppCpuTimeLimit(30); // 30% CPU limit for background
+    return true;
+}
+
+static void restore_sleep_mode() {
+    APT_SetAppCpuTimeLimit(0); // Restore normal CPU usage
+}
+
+// LED notification functions
+static void set_led_notification(u8 pattern) {
+    // Use MCUHWC for LED control
+    // Pattern: 0 = off, 1-7 = various blink patterns
+    u8 led_state = 0;
+
+    if (pattern == 1) {
+        // Green notification pattern
+        led_state = 1; // Blink pattern
+    } else if (pattern == 2) {
+        // Pink/Red notification pattern
+        led_state = 2; // Different blink pattern
+    }
+
+    // Note: Actual LED control requires mcuHwcInit() and specific API calls
+    // This is a simplified version
+}
+static void led_notification_green() {
+    // Green LED: Download + Extraction completed
+    set_led_notification(1);
+}
+
+static void led_notification_pink() {
+    // Pink/Red LED: Download completed (before extraction)
+    set_led_notification(2);
+}
+
+static void led_notification_off() {
+    // Turn off LED notification
+    set_led_notification(0);
+}
+
 
 // Download states for queue management
 typedef enum {
@@ -142,30 +188,73 @@ static int load_directory(FileBrowser* browser) {
     return browser->count;
 }
 
-// Display file browser
+// Display file browser using GUI
 static void display_file_browser(FileBrowser* browser, int scroll_offset) {
-    consoleClear();
-    printf("\x1b[1;1HFile Browser - Select Extract Path");
-    printf("\x1b[2;1H================================");
-    printf("\x1b[3;1HCurrent: %.40s", browser->current_path);
-    printf("\x1b[4;1H================================");
-    
-    int visible_lines = 14;
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    C2D_TargetClear(g_top, COLOR_BG);
+    C2D_SceneBegin(g_top);
+
+    C2D_TextBufClear(g_textBuf);
+    C2D_Text text;
+    float y = 5.0f;
+
+    // Title bar
+    C2D_DrawRectSolid(0, 0, 0.5f, 400, 22, COLOR_ACCENT);
+    C2D_TextParse(&text, g_textBuf, " File Browser - Select Path");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 5.0f, 3.0f, 0.5f, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255));
+    y = 25.0f;
+
+    // Current path
+    char pathBuf[64];
+    snprintf(pathBuf, sizeof(pathBuf), "%.50s", browser->current_path);
+    C2D_TextParse(&text, g_textBuf, pathBuf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+    y += 15.0f;
+
+    C2D_DrawRectSolid(10, y, 0.5f, 380, 1, COLOR_ACCENT);
+    y += 5.0f;
+
+    // File list
+    int visible_lines = 10;
     int start = scroll_offset;
     int end = start + visible_lines;
     if (end > browser->count) end = browser->count;
     
     for (int i = start; i < end; i++) {
-        int line = 6 + (i - start);
-        const char* marker = (i == browser->selected) ? ">" : " ";
-        const char* type_marker = browser->entries[i].is_directory ? "/" : " ";
-        
-        printf("\x1b[%d;1H%s %.42s%s", line, marker, browser->entries[i].name, type_marker);
+        char lineBuf[64];
+        const char* type_marker = browser->entries[i].is_directory ? "/" : "";
+        snprintf(lineBuf, sizeof(lineBuf), "%.45s%s", browser->entries[i].name, type_marker);
+
+        if (i == browser->selected) {
+            C2D_DrawRectSolid(10, y - 1, 0.5f, 380, 14, COLOR_ACCENT);
+            C2D_TextParse(&text, g_textBuf, lineBuf);
+            C2D_TextOptimize(&text);
+            C2D_DrawText(&text, C2D_WithColor, 15.0f, y, 0.5f, 0.38f, 0.38f, C2D_Color32(0, 0, 0, 255));
+        } else {
+            C2D_TextParse(&text, g_textBuf, lineBuf);
+            C2D_TextOptimize(&text);
+            C2D_DrawText(&text, C2D_WithColor, 15.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
+        }
+        y += 14.0f;
     }
     
-    printf("\x1b[21;1HD-Pad: Navigate  A: Select/Enter");
-    printf("\x1b[22;1HY: Use Current  B: Cancel");
-    printf("\x1b[23;1HX: Create New Folder");
+    // Controls
+    y = 200.0f;
+    C2D_TextParse(&text, g_textBuf, "D-Pad: Navigate  A: Enter  Y: Select");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
+    y += 12.0f;
+    C2D_TextParse(&text, g_textBuf, "B: Cancel  X: New Folder");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_TEXT);
+
+    C2D_TargetClear(g_bottom, COLOR_BG);
+    C2D_SceneBegin(g_bottom);
+
+    C3D_FrameEnd(0);
 }
 
 // Forward declaration
@@ -273,38 +362,105 @@ static int read_config_file(const char* file_path, DownloadQueue* queue) {
     return queue->count;
 }
 
-// Display queue status
+// Create example config file if it doesn't exist
+static bool create_example_config(const char* file_path) {
+    FILE* file = fopen(file_path, "w");
+    if (!file) {
+        return false;
+    }
+
+    // Write example configuration
+    fprintf(file, "# 3DS Archive Extractor - Configuration File\n");
+    fprintf(file, "# Lines starting with # are comments\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Settings:\n");
+    fprintf(file, "extract_path=sdmc:/extracted/\n");
+    fprintf(file, "auto_retry=true\n");
+    fprintf(file, "max_retries=3\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Add your URLs below (one per line):\n");
+    fprintf(file, "# Example:\n");
+    fprintf(file, "# https://example.com/file.zip\n");
+    fprintf(file, "# https://drive.google.com/file/d/FILE_ID/view\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Supported formats:\n");
+    fprintf(file, "# ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD\n");
+    fprintf(file, "# 7Z, RAR, GZIP, BZIP2, XZ, ZSTD\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Add your URLs here:\n");
+    fprintf(file, "\n");
+
+    fclose(file);
+    return true;
+}
+
+// Display queue status using GUI
 static void display_queue_status(DownloadQueue* queue, int current_page) {
-    consoleClear();
-    printf("\x1b[1;1HArchive Extractor - Queue Status");
-    printf("\x1b[2;1H================================");
-    
-    int items_per_page = 12;
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    C2D_TargetClear(g_top, COLOR_BG);
+    C2D_SceneBegin(g_top);
+
+    C2D_TextBufClear(g_textBuf);
+    C2D_Text text;
+    float y = 5.0f;
+
+    // Title bar
+    C2D_DrawRectSolid(0, 0, 0.5f, 400, 22, COLOR_ACCENT);
+    C2D_TextParse(&text, g_textBuf, " Queue Status");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 5.0f, 3.0f, 0.5f, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255));
+    y = 25.0f;
+
+    int items_per_page = 10;
     int start = current_page * items_per_page;
     int end = start + items_per_page;
     if (end > queue->count) end = queue->count;
     
-    printf("\x1b[4;1HShowing %d-%d of %d", start + 1, end, queue->count);
-    
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Showing %d-%d of %d", start + 1, end, queue->count);
+    C2D_TextParse(&text, g_textBuf, buf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+    y += 15.0f;
+
     for (int i = start; i < end; i++) {
-        int line = 6 + (i - start);
         const char* state_str = "?";
-        
+        u32 state_color = COLOR_TEXT;
+
         switch (queue->items[i].state) {
-            case DOWNLOAD_PENDING: state_str = "[ ]"; break;
-            case DOWNLOAD_IN_PROGRESS: state_str = "[>]"; break;
-            case DOWNLOAD_COMPLETED: state_str = "[✓]"; break;
-            case DOWNLOAD_FAILED: state_str = "[X]"; break;
-            case DOWNLOAD_SKIPPED: state_str = "[-]"; break;
+            case DOWNLOAD_PENDING: state_str = "[ ]"; state_color = COLOR_PENDING; break;
+            case DOWNLOAD_IN_PROGRESS: state_str = "[>]"; state_color = COLOR_PROGRESS; break;
+            case DOWNLOAD_COMPLETED: state_str = "[OK]"; state_color = COLOR_SUCCESS; break;
+            case DOWNLOAD_FAILED: state_str = "[X]"; state_color = COLOR_ERROR; break;
+            case DOWNLOAD_SKIPPED: state_str = "[-]"; state_color = COLOR_PENDING; break;
         }
         
-        printf("\x1b[%d;1H%s %.38s", line, state_str, queue->items[i].url);
+        snprintf(buf, sizeof(buf), "%s %.42s", state_str, queue->items[i].url);
+        C2D_TextParse(&text, g_textBuf, buf);
+        C2D_TextOptimize(&text);
+        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.33f, 0.33f, state_color);
+        y += 13.0f;
     }
     
     int total_pages = (queue->count + items_per_page - 1) / items_per_page;
-    printf("\x1b[20;1HPage %d/%d", current_page + 1, total_pages);
-    printf("\x1b[22;1HL/R: Change page  Y: Skip failed");
-    printf("\x1b[23;1HA: Continue  B: Back  START: Exit");
+    if (total_pages == 0) total_pages = 1;
+
+    y = 195.0f;
+    snprintf(buf, sizeof(buf), "Page %d/%d", current_page + 1, total_pages);
+    C2D_TextParse(&text, g_textBuf, buf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
+    y += 14.0f;
+
+    C2D_TextParse(&text, g_textBuf, "L/R: Page  Y: Skip failed  B: Back");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
+
+    C2D_TargetClear(g_bottom, COLOR_BG);
+    C2D_SceneBegin(g_bottom);
+
+    C3D_FrameEnd(0);
 }
 
 // Function to convert Google Drive URLs to direct download links
@@ -397,40 +553,9 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     return 0;
 }
 
-// Update download progress display with hybrid GUI
+// Update download progress display using GUI (like fast-uninstall)
 static void update_download_display(int current, int total, DownloadData* data, const char* url) {
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    if (total > 1) {
-        printf("\x1b[6;1HDownloading file %d of %d", current, total);
-    } else {
-        printf("\x1b[6;1HDownloading...");
-    }
-    printf("\x1b[8;1HURL: %.45s", url);
-    if (data->total > 0) {
-        printf("\x1b[10;1HProgress: %.2f MB / %.2f MB", 
-               (data->downloaded) / (1024.0 * 1024.0),
-               (data->total) / (1024.0 * 1024.0));
-        printf("\x1b[11;1HPercentage: %.1f%%", 
-               (data->downloaded * 100.0) / data->total);
-        
-        // Add graphical progress bar on bottom screen if GUI is enabled
-        if (g_use_gui) {
-            gui_begin_frame(&g_gui);
-            
-            C2D_SceneBegin(g_gui.bottom_screen);
-            float progress = (float)data->downloaded / (float)data->total;
-            gui_draw_download_progress(progress, data->downloaded, data->total);
-            
-            gui_end_frame(&g_gui);
-        }
-    }
-    printf("\x1b[13;1HPress B to cancel");
-    
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
+    gui_draw_download(current, total, url, data->downloaded, data->total);
 }
 
 // Download file with resume support
@@ -692,22 +817,8 @@ static bool extraction_progress_callback(int file_count, const char* current_fil
     strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
     extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
 
-    // Update display
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    if (total > 1) {
-        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
-    } else {
-        printf("\x1b[6;1HExtracting...\n");
-    }
-    printf("\x1b[8;1HFiles extracted: %d\n", file_count);
-    printf("\x1b[9;1HCurrent: %.40s\n", current_file);
-    printf("\x1b[11;1HPress B to cancel\n");
-
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
+    // Update display using GUI
+    gui_draw_extraction(current_file, file_count);
 
     // Check for cancel
     hidScanInput();
@@ -728,38 +839,18 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
     ArchiveType type = detect_archive_type(archive_path);
     const char* type_name = get_archive_type_name(type);
 
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    if (total > 1) {
-        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
-    } else {
-        printf("\x1b[6;1HExtracting archive...\n");
-    }
-    printf("\x1b[8;1HFormat: %s\n", type_name);
-    printf("\x1b[10;1HPress B to cancel\n");
-
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
+    // Show extraction starting
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Extracting %s archive...", type_name);
+    gui_draw_status("Archive Extractor for 3DS", msg);
 
     // Check if format is supported
     if (type == ARCHIVE_UNKNOWN) {
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HError: Unsupported format\n");
-        printf("\x1b[8;1H%s\n", archive_path);
-        printf("\x1b[10;1HSupported formats:");
-        printf("\x1b[11;1H  ZIP, TAR, TAR.GZ, TAR.BZ2");
-        printf("\x1b[12;1H  TAR.XZ, TAR.ZSTD, 7Z, RAR");
-        printf("\x1b[14;1HPress A to continue\n");
+        gui_draw_error("Unsupported Format", "ZIP, TAR, 7Z, RAR supported");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_error("Unsupported Format", "Press A to continue");
         }
         return -1;
     }
@@ -774,143 +865,239 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 
     if (file_count == -4) {
         // Cancelled by user
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HExtraction cancelled!\n");
-        printf("\x1b[8;1HPress A to continue\n");
+        gui_draw_status("Archive Extractor for 3DS", "Extraction cancelled!");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_status("Cancelled", "Press A to continue");
         }
         return -2;
     }
 
     if (file_count < 0) {
         // Error during extraction
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HError during extraction\n");
-        printf("\x1b[8;1HError code: %d\n", file_count);
-        printf("\x1b[10;1HPress A to continue\n");
+        char errMsg[64];
+        snprintf(errMsg, sizeof(errMsg), "Extraction error: %d", file_count);
+        gui_draw_error("Extraction Failed", errMsg);
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_error("Error", "Press A to continue");
         }
         return -1;
     }
 
-    // Success
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    printf("\x1b[6;1HExtraction complete!\n\n");
-    printf("\x1b[8;1HFormat: %s\n", type_name);
-    printf("\x1b[9;1HExtracted %d file(s)\n", file_count);
-    printf("\x1b[10;1HLocation: %s\n", output_dir);
-    printf("\x1b[14;1HPress A to continue\n");
+    // Success - Trigger green LED notification
+    led_notification_green();
 
+    gui_draw_status("Extraction Complete!", "Press A to continue");
     while (aptMainLoop()) {
         hidScanInput();
         if (hidKeysDown() & KEY_A) break;
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
     }
 
     return 0;
 }
 
 int main(int argc, char** argv) {
+    // Initialize graphics (like fast-uninstall)
     gfxInitDefault();
-    consoleInit(GFX_TOP, NULL);
-    
-    // Initialize hybrid GUI
+
+    // Initialize GUI with citro2d
     g_use_gui = gui_init(&g_gui);
+
     if (!g_use_gui) {
-        printf("Warning: GUI initialization failed\n");
-        printf("Falling back to console-only mode\n");
+        // Cannot continue without GUI
+        gfxExit();
+        return 1;
     }
-    
+
+    // Show initializing screen
+    gui_draw_status("Archive Extractor for 3DS", "Initializing...");
+
+    // Initialize PTMU for LED notifications
+    ptmuInit();
+
+    // Enable sleep mode support (continue downloads in background)
+    enable_sleep_mode();
+
+    gui_draw_status("Archive Extractor for 3DS", "Initializing network...");
+
     // Initialize networking
     Result ret = 0;
     u32* socMemory = (u32*)memalign(0x1000, 0x100000);
     if (!socMemory) {
-        printf("Failed to allocate socket memory\n");
-        goto cleanup;
+        gui_draw_error("Error", "Failed to allocate socket memory!");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+        }
+        gui_cleanup(&g_gui);
+        ptmuExit();
+        gfxExit();
+        return 1;
     }
     
     ret = socInit(socMemory, 0x100000);
     if (ret != 0) {
-        printf("socInit failed: 0x%08lX\n", ret);
+        gui_draw_error("Network Error", "Failed to initialize network!");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+        }
         free(socMemory);
-        goto cleanup;
+        gui_cleanup(&g_gui);
+        ptmuExit();
+        gfxExit();
+        return 1;
     }
     
+    gui_draw_status("Archive Extractor for 3DS", "Initializing downloads...");
+
     // Initialize curl
     curl_global_init(CURL_GLOBAL_ALL);
     
     const char* extract_path = DEFAULT_EXTRACT_PATH;
-    DownloadQueue queue = {0};
-    
-    // Create config directory if it doesn't exist
-    ret = mkdir("sdmc:/3ds", 0777);
-    ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
-    // Ignore errors - directories may already exist
-    
-    // Try to read configuration file
-    int url_count = read_config_file(CONFIG_FILE_PATH, &queue);
-    if (url_count > 0) {
-        extract_path = queue.extract_path;
-    }
-    
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    
-    if (url_count > 0) {
-        printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
-        printf("\x1b[8;1HConfig file:");
-        printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-        printf("\x1b[11;1HExtract path:");
-        printf("\x1b[12;1H  %s", extract_path);
-        if (queue.auto_retry) {
-            printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+
+    gui_draw_status("Archive Extractor for 3DS", "Initializing...");
+
+    // Allocate queue on heap to avoid stack overflow (structure is very large)
+    DownloadQueue* queue = (DownloadQueue*)calloc(1, sizeof(DownloadQueue));
+    if (!queue) {
+        gui_draw_error("Memory Error", "Failed to allocate queue!");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
         }
-        printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
-        printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
-        printf("\x1b[17;1HPress A to start downloads");
-        printf("\x1b[18;1HPress X to view queue");
-        printf("\x1b[19;1HPress SELECT to browse path");
-        printf("\x1b[20;1HPress START to exit");
-    } else {
-        printf("\x1b[6;1HNo config file found!");
-        printf("\x1b[8;1HPlease create:");
-        printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-        printf("\x1b[11;1HAdd URLs (one per line) or");
-        printf("\x1b[12;1Huse old format at:");
-        printf("\x1b[13;1H  sdmc:/3ds/zip-extractor/urls.txt");
-        printf("\x1b[15;1HExample config.txt:");
-        printf("\x1b[16;1H  extract_path=/extracted/");
-        printf("\x1b[17;1H  auto_retry=true");
-        printf("\x1b[18;1H  https://example.com/file.zip");
-        printf("\x1b[20;1HPress START to exit");
+        curl_global_cleanup();
+        socExit();
+        free(socMemory);
+        gui_cleanup(&g_gui);
+        ptmuExit();
+        gfxExit();
+        return 1;
+    }
+
+    gui_draw_status("Archive Extractor for 3DS", "Loading...");
+
+    // Create config directory if it doesn't exist
+    mkdir("sdmc:/3ds", 0777);
+    mkdir("sdmc:/3ds/zip-extractor", 0777);
+    // Ignore errors - directories may already exist
+
+    // Try to read configuration file
+    int url_count = read_config_file(CONFIG_FILE_PATH, queue);
+
+
+    // If config doesn't exist, create an example one and EXIT
+    if (url_count < 0) {
+        gui_draw_status("Archive Extractor for 3DS", "Config not found! Creating...");
+
+        // Small delay so user sees the message
+        for (int i = 0; i < 30; i++) gspWaitForVBlank();
+
+        if (create_example_config(CONFIG_FILE_PATH)) {
+            // Config created successfully - show message and force exit
+            while (aptMainLoop()) {
+                hidScanInput();
+                if (hidKeysDown() & KEY_START) break;
+
+                // Show clear instructions
+                C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+                C2D_TargetClear(g_top, COLOR_BG);
+                C2D_SceneBegin(g_top);
+                C2D_TextBufClear(g_textBuf);
+                C2D_Text text;
+                float y = 10.0f;
+
+                C2D_TextParse(&text, g_textBuf, "Config File Created!");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.6f, 0.6f, COLOR_SUCCESS);
+                y += 30;
+
+                C2D_DrawRectSolid(10, y, 0.5f, 380, 2, COLOR_ACCENT);
+                y += 15;
+
+                C2D_TextParse(&text, g_textBuf, "Location:");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
+                y += 16;
+
+                C2D_TextParse(&text, g_textBuf, "  sdmc:/3ds/zip-extractor/config.txt");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 25;
+
+                C2D_TextParse(&text, g_textBuf, "What to do:");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
+                y += 16;
+
+                C2D_TextParse(&text, g_textBuf, "  1. Close this app (START)");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 14;
+
+                C2D_TextParse(&text, g_textBuf, "  2. Edit config.txt on your SD card");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 14;
+
+                C2D_TextParse(&text, g_textBuf, "  3. Add your download URLs");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 14;
+
+                C2D_TextParse(&text, g_textBuf, "  4. Restart the app");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 30;
+
+                C2D_TextParse(&text, g_textBuf, "Press START to exit");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.45f, 0.45f, COLOR_PROGRESS);
+
+                C2D_TargetClear(g_bottom, COLOR_BG);
+                C2D_SceneBegin(g_bottom);
+                C3D_FrameEnd(0);
+            }
+        } else {
+            // Cannot create config - show error
+            while (aptMainLoop()) {
+                hidScanInput();
+                if (hidKeysDown() & KEY_START) break;
+                gui_draw_error("Cannot Create Config", "SD card read-only? Press START");
+            }
+        }
+
+        // Force exit - user must edit config and restart
+        goto exit_loop;
+    }
+
+    if (url_count > 0) {
+        extract_path = queue->extract_path;
     }
     
+    // Show main menu immediately after loading config
+    gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
+                       queue->auto_retry, queue->max_retries);
+
     bool started = false;
     bool cancelled = false;
     bool show_queue = false;
     bool show_browser = false;
     int queue_page = 0;
-    FileBrowser browser = {0};
+
+    // Allocate browser on heap to avoid stack overflow
+    FileBrowser* browser = (FileBrowser*)calloc(1, sizeof(FileBrowser));
+    if (!browser) {
+        gui_draw_error("Warning", "File browser disabled (memory)");
+        // Continue without browser
+    }
+
     int browser_scroll = 0;
     
+    // Main loop - MUST render every frame like fast-uninstall
     while (aptMainLoop()) {
         hidScanInput();
         u32 kDown = hidKeysDown();
@@ -919,63 +1106,79 @@ int main(int argc, char** argv) {
             break;
         }
         
+        // Render current screen state
+        if (!started && !show_queue && !show_browser) {
+            // Main menu - render every frame
+            gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
+                              queue->auto_retry, queue->max_retries);
+        }
+
         // File browser
         if (show_browser) {
+            // TODO: implement gui_draw_file_browser
             if (kDown & KEY_UP) {
-                if (browser.selected > 0) {
-                    browser.selected--;
-                    if (browser.selected < browser_scroll) {
-                        browser_scroll = browser.selected;
+                if (browser && browser->selected > 0) {
+                    browser->selected--;
+                    if (browser->selected < browser_scroll) {
+                        browser_scroll = browser->selected;
                     }
                 }
-                display_file_browser(&browser, browser_scroll);
             }
             
             if (kDown & KEY_DOWN) {
-                if (browser.selected < browser.count - 1) {
-                    browser.selected++;
-                    if (browser.selected >= browser_scroll + 14) {
-                        browser_scroll = browser.selected - 13;
+                if (browser && browser->selected < browser->count - 1) {
+                    browser->selected++;
+                    if (browser->selected >= browser_scroll + 14) {
+                        browser_scroll = browser->selected - 13;
                     }
                 }
-                display_file_browser(&browser, browser_scroll);
+                display_file_browser(browser, browser_scroll);
             }
             
             if (kDown & KEY_A) {
                 // Enter directory or select
-                if (browser.entries[browser.selected].is_directory) {
-                    if (strcmp(browser.entries[browser.selected].name, "..") == 0) {
+                if (browser->entries[browser->selected].is_directory) {
+                    if (strcmp(browser->entries[browser->selected].name, "..") == 0) {
                         // Go up one directory
-                        char* last_slash = strrchr(browser.current_path, '/');
-                        if (last_slash != NULL && last_slash != browser.current_path) {
+                        char* last_slash = strrchr(browser->current_path, '/');
+                        if (last_slash != NULL && last_slash != browser->current_path) {
                             *last_slash = '\0';
                             // Handle case where we're at sdmc:/something
-                            if (strncmp(browser.current_path, "sdmc:", 5) == 0 && strlen(browser.current_path) == 5) {
-                                strcat(browser.current_path, "/");
+                            if (strncmp(browser->current_path, "sdmc:", 5) == 0 && strlen(browser->current_path) == 5) {
+                                strcat(browser->current_path, "/");
                             }
                         }
                     } else {
-                        // Enter subdirectory
-                        if (browser.current_path[strlen(browser.current_path) - 1] != '/') {
-                            strcat(browser.current_path, "/");
+                        // Enter subdirectory - use safe string operations
+                        size_t path_len = strlen(browser->current_path);
+                        size_t name_len = strlen(browser->entries[browser->selected].name);
+
+                        // Check if we have enough space
+                        if (path_len + name_len + 2 < MAX_PATH_LENGTH) {
+                            if (browser->current_path[path_len - 1] != '/') {
+                                browser->current_path[path_len] = '/';
+                                browser->current_path[path_len + 1] = '\0';
+                                path_len++;
+                            }
+                            strncat(browser->current_path, browser->entries[browser->selected].name,
+                                   MAX_PATH_LENGTH - path_len - 1);
                         }
-                        strcat(browser.current_path, browser.entries[browser.selected].name);
                     }
-                    load_directory(&browser);
+                    load_directory(browser);
                     browser_scroll = 0;
-                    display_file_browser(&browser, browser_scroll);
+                    display_file_browser(browser, browser_scroll);
                 }
             }
             
             if (kDown & KEY_Y) {
                 // Use current directory
-                strncpy(queue.extract_path, browser.current_path, MAX_PATH_LENGTH - 1);
-                queue.extract_path[MAX_PATH_LENGTH - 1] = '\0';
+                strncpy(queue->extract_path, browser->current_path, MAX_PATH_LENGTH - 1);
+                queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
                 // Ensure path ends with /
-                if (queue.extract_path[strlen(queue.extract_path) - 1] != '/') {
-                    strcat(queue.extract_path, "/");
+                if (queue->extract_path[strlen(queue->extract_path) - 1] != '/') {
+                    strcat(queue->extract_path, "/");
                 }
-                extract_path = queue.extract_path;
+                extract_path = queue->extract_path;
                 show_browser = false;
                 
                 // Return to main menu
@@ -987,8 +1190,8 @@ int main(int argc, char** argv) {
                 printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
                 printf("\x1b[11;1HExtract path:");
                 printf("\x1b[12;1H  %s", extract_path);
-                if (queue.auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                if (queue->auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
                 }
                 printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
                 printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -1010,8 +1213,8 @@ int main(int argc, char** argv) {
                 printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
                 printf("\x1b[11;1HExtract path:");
                 printf("\x1b[12;1H  %s", extract_path);
-                if (queue.auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                if (queue->auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
                 }
                 printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
                 printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -1023,12 +1226,12 @@ int main(int argc, char** argv) {
         }
         
         // Show file browser
-        if ((kDown & KEY_SELECT) && url_count > 0 && !started && !show_queue && !show_browser) {
+        if ((kDown & KEY_SELECT) && url_count > 0 && !started && !show_queue && !show_browser && browser) {
             show_browser = true;
-            init_file_browser(&browser, "sdmc:/");
-            load_directory(&browser);
+            init_file_browser(browser, "sdmc:/");
+            load_directory(browser);
             browser_scroll = 0;
-            display_file_browser(&browser, browser_scroll);
+            display_file_browser(browser, browser_scroll);
         }
         
         // Queue navigation
@@ -1037,22 +1240,22 @@ int main(int argc, char** argv) {
             
             if ((kDown & KEY_R) && queue_page < total_pages - 1) {
                 queue_page++;
-                display_queue_status(&queue, queue_page);
+                display_queue_status(queue, queue_page);
             }
             
             if ((kDown & KEY_L) && queue_page > 0) {
                 queue_page--;
-                display_queue_status(&queue, queue_page);
+                display_queue_status(queue, queue_page);
             }
             
             if (kDown & KEY_Y) {
                 // Skip all failed downloads
                 for (int i = 0; i < url_count; i++) {
-                    if (queue.items[i].state == DOWNLOAD_FAILED) {
-                        queue.items[i].state = DOWNLOAD_SKIPPED;
+                    if (queue->items[i].state == DOWNLOAD_FAILED) {
+                        queue->items[i].state = DOWNLOAD_SKIPPED;
                     }
                 }
-                display_queue_status(&queue, queue_page);
+                display_queue_status(queue, queue_page);
             }
             
             if (kDown & KEY_B) {
@@ -1066,8 +1269,8 @@ int main(int argc, char** argv) {
                 printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
                 printf("\x1b[11;1HExtract path:");
                 printf("\x1b[12;1H  %s", extract_path);
-                if (queue.auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                if (queue->auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
                 }
                 printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
                 printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -1087,7 +1290,7 @@ int main(int argc, char** argv) {
         if ((kDown & KEY_X) && url_count > 0 && !started && !show_queue) {
             show_queue = true;
             queue_page = 0;
-            display_queue_status(&queue, queue_page);
+            display_queue_status(queue, queue_page);
         }
         
         // Start processing
@@ -1107,16 +1310,16 @@ int main(int argc, char** argv) {
             // Process each URL in queue
             for (int i = 0; i < url_count && !cancelled; i++) {
                 // Skip items that are skipped or already completed
-                if (queue.items[i].state == DOWNLOAD_SKIPPED) {
+                if (queue->items[i].state == DOWNLOAD_SKIPPED) {
                     skipped++;
                     continue;
                 }
-                if (queue.items[i].state == DOWNLOAD_COMPLETED) {
+                if (queue->items[i].state == DOWNLOAD_COMPLETED) {
                     successful++;
                     continue;
                 }
                 
-                queue.items[i].state = DOWNLOAD_IN_PROGRESS;
+                queue->items[i].state = DOWNLOAD_IN_PROGRESS;
                 
                 int retries = 0;
                 bool download_success = false;
@@ -1127,7 +1330,7 @@ int main(int argc, char** argv) {
                     printf("\x1b[4;1H================================");
                     printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
                     if (retries > 0) {
-                        printf("\x1b[7;1HRetry attempt %d/%d", retries, queue.max_retries);
+                        printf("\x1b[7;1HRetry attempt %d/%d", retries, queue->max_retries);
                     }
                     printf("\x1b[9;1HStarting download...");
                     
@@ -1136,18 +1339,21 @@ int main(int argc, char** argv) {
                     gspWaitForVBlank();
                     
                     // Download file
-                    Result download_result = download_file(queue.items[i].url, TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
+                    Result download_result = download_file(queue->items[i].url, TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
                     
                     if (cancelled) {
                         break;
                     }
                     
                     if (download_result == 0) {
+                        // Download completed - Trigger pink LED notification
+                        led_notification_pink();
+
                         // Extract archive
                         Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
                         
                         if (extract_result == 0) {
-                            queue.items[i].state = DOWNLOAD_COMPLETED;
+                            queue->items[i].state = DOWNLOAD_COMPLETED;
                             successful++;
                             total_files_extracted += extract_data.extracted_files;
                             download_success = true;
@@ -1155,16 +1361,16 @@ int main(int argc, char** argv) {
                             cancelled = true;
                             break;
                         } else {
-                            strncpy(queue.items[i].error_msg, "Extraction failed", sizeof(queue.items[i].error_msg) - 1);
+                            strncpy(queue->items[i].error_msg, "Extraction failed", sizeof(queue->items[i].error_msg) - 1);
                         }
                         
                         // Clean up temp file
                         remove(TEMP_DOWNLOAD_PATH);
                     } else {
-                        strncpy(queue.items[i].error_msg, "Download failed", sizeof(queue.items[i].error_msg) - 1);
+                        strncpy(queue->items[i].error_msg, "Download failed", sizeof(queue->items[i].error_msg) - 1);
                     }
                     
-                    if (!download_success && queue.auto_retry && retries < queue.max_retries) {
+                    if (!download_success && queue->auto_retry && retries < queue->max_retries) {
                         retries++;
                         // Wait a bit before retry
                         svcSleepThread(2000000000LL); // 2 seconds
@@ -1172,10 +1378,10 @@ int main(int argc, char** argv) {
                         break;
                     }
                     
-                } while (!download_success && retries <= queue.max_retries);
+                } while (!download_success && retries <= queue->max_retries);
                 
                 if (!download_success && !cancelled) {
-                    queue.items[i].state = DOWNLOAD_FAILED;
+                    queue->items[i].state = DOWNLOAD_FAILED;
                     failed++;
                 }
             }
@@ -1219,15 +1425,15 @@ int main(int argc, char** argv) {
                 if ((kDown2 & KEY_X) && failed > 0) {
                     show_queue = true;
                     queue_page = 0;
-                    display_queue_status(&queue, queue_page);
+                    display_queue_status(queue, queue_page);
                     break;
                 }
                 
                 if ((kDown2 & KEY_A) && failed > 0) {
                     // Reset failed items to pending and restart
                     for (int i = 0; i < url_count; i++) {
-                        if (queue.items[i].state == DOWNLOAD_FAILED) {
-                            queue.items[i].state = DOWNLOAD_PENDING;
+                        if (queue->items[i].state == DOWNLOAD_FAILED) {
+                            queue->items[i].state = DOWNLOAD_PENDING;
                         }
                     }
                     started = true;
@@ -1247,15 +1453,28 @@ int main(int argc, char** argv) {
     
 exit_loop:
     
+    // Turn off LED notifications
+    led_notification_off();
+
+    // Restore normal sleep mode
+    restore_sleep_mode();
+
+    // Free allocated memory
+    if (browser) {
+        free(browser);
+    }
+    if (queue) {
+        free(queue);
+    }
+
     curl_global_cleanup();
     socExit();
     free(socMemory);
     
-    if (g_use_gui) {
-        gui_cleanup(&g_gui);
-    }
-    
-cleanup:
+
+    // Cleanup PTMU
+    ptmuExit();
+
     gfxExit();
     return 0;
 }

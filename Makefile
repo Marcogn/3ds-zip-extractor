@@ -40,10 +40,9 @@ GRAPHICS	:=	gfx
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(BUILD)
 
-APP_TITLE	:=	Archive Extractor
-APP_DESCRIPTION	:=	Download and extract multiple formats
-APP_AUTHOR	:=	Marcogn
-ICON		:=	icon.png
+APP_TITLE	    := 3DS Zip Extractor
+APP_DESCRIPTION	:= Download and extract archives
+APP_AUTHOR	    := Marcogn
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -63,6 +62,7 @@ LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 # Multi-format archive support with libarchive
 # Supports: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD, 7Z, RAR (read-only)
+# GPU rendering with citro2d/citro3d (like fast-uninstall)
 LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
@@ -141,19 +141,41 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
+ifeq ($(strip $(ICON)),)
+	icons := $(wildcard *.png)
+	ifneq (,$(findstring $(TARGET).png,$(icons)))
+		export APP_ICON := $(TOPDIR)/$(TARGET).png
+	else
+		ifneq (,$(findstring icon.png,$(icons)))
+			export APP_ICON := $(TOPDIR)/icon.png
+		endif
+	endif
+else
+	export APP_ICON := $(TOPDIR)/$(ICON)
+endif
+
+ifeq ($(strip $(NO_SMDH)),)
+	export _3DSXFLAGS += --smdh=$(CURDIR)/$(TARGET).smdh
+endif
+
 .PHONY: $(BUILD) clean all
 
 #---------------------------------------------------------------------------------
 all: $(BUILD)
 
-$(BUILD):
+$(BUILD): $(TARGET).smdh
 	@[ -d $@ ] || mkdir -p $@
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+# Generate SMDH if it doesn't exist
+$(TARGET).smdh:
+	@echo "Generating SMDH..."
+	@smdhtool --create "$(APP_TITLE)" "$(APP_DESCRIPTION)" "$(APP_AUTHOR)" $(TOPDIR)/$(ICON) $@
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf
+	@rm -fr $(BUILD) $(TARGET).3dsx $(TARGET).elf
 
 
 #---------------------------------------------------------------------------------
