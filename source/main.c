@@ -959,33 +959,33 @@ int main(int argc, char** argv) {
     
     const char* extract_path = DEFAULT_EXTRACT_PATH;
 
-    gui_draw_status("Archive Extractor for 3DS", "Loading configuration...");
+    gui_draw_status("Archive Extractor for 3DS", "Allocating memory...");
 
     // Allocate queue on heap to avoid stack overflow (structure is very large)
     DownloadQueue* queue = (DownloadQueue*)calloc(1, sizeof(DownloadQueue));
     if (!queue) {
-        printf("\nFailed to allocate queue memory!\n");
-        printf("Press START to exit\n");
-        curl_global_cleanup();
-        socExit();
-        free(socMemory);
+        gui_draw_error("Memory Error", "Failed to allocate queue!");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_START) break;
-            gui_draw_error("Memory Error", "Press START to exit");
         }
-        if (g_use_gui) {
-            gui_cleanup(&g_gui);
-        }
+        curl_global_cleanup();
+        socExit();
+        free(socMemory);
+        gui_cleanup(&g_gui);
         ptmuExit();
         gfxExit();
         return 1;
     }
 
+    gui_draw_status("Archive Extractor for 3DS", "Creating directories...");
+
     // Create config directory if it doesn't exist
-    ret = mkdir("sdmc:/3ds", 0777);
-    ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
+    mkdir("sdmc:/3ds", 0777);
+    mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
+
+    gui_draw_status("Archive Extractor for 3DS", "Loading configuration...");
 
     // Try to read configuration file
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
