@@ -817,22 +817,8 @@ static bool extraction_progress_callback(int file_count, const char* current_fil
     strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
     extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
 
-    // Update display
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    if (total > 1) {
-        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
-    } else {
-        printf("\x1b[6;1HExtracting...\n");
-    }
-    printf("\x1b[8;1HFiles extracted: %d\n", file_count);
-    printf("\x1b[9;1HCurrent: %.40s\n", current_file);
-    printf("\x1b[11;1HPress B to cancel\n");
-
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
+    // Update display using GUI
+    gui_draw_extraction(current_file, file_count);
 
     // Check for cancel
     hidScanInput();
@@ -853,38 +839,18 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
     ArchiveType type = detect_archive_type(archive_path);
     const char* type_name = get_archive_type_name(type);
 
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    if (total > 1) {
-        printf("\x1b[6;1HExtracting archive %d of %d\n", current, total);
-    } else {
-        printf("\x1b[6;1HExtracting archive...\n");
-    }
-    printf("\x1b[8;1HFormat: %s\n", type_name);
-    printf("\x1b[10;1HPress B to cancel\n");
-
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
+    // Show extraction starting
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Extracting %s archive...", type_name);
+    gui_draw_status("Archive Extractor for 3DS", msg);
 
     // Check if format is supported
     if (type == ARCHIVE_UNKNOWN) {
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HError: Unsupported format\n");
-        printf("\x1b[8;1H%s\n", archive_path);
-        printf("\x1b[10;1HSupported formats:");
-        printf("\x1b[11;1H  ZIP, TAR, TAR.GZ, TAR.BZ2");
-        printf("\x1b[12;1H  TAR.XZ, TAR.ZSTD, 7Z, RAR");
-        printf("\x1b[14;1HPress A to continue\n");
+        gui_draw_error("Unsupported Format", "ZIP, TAR, 7Z, RAR supported");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_error("Unsupported Format", "Press A to continue");
         }
         return -1;
     }
@@ -899,35 +865,24 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 
     if (file_count == -4) {
         // Cancelled by user
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HExtraction cancelled!\n");
-        printf("\x1b[8;1HPress A to continue\n");
+        gui_draw_status("Archive Extractor for 3DS", "Extraction cancelled!");
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_status("Cancelled", "Press A to continue");
         }
         return -2;
     }
 
     if (file_count < 0) {
         // Error during extraction
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HError during extraction\n");
-        printf("\x1b[8;1HError code: %d\n", file_count);
-        printf("\x1b[10;1HPress A to continue\n");
+        char errMsg[64];
+        snprintf(errMsg, sizeof(errMsg), "Extraction error: %d", file_count);
+        gui_draw_error("Extraction Failed", errMsg);
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_error("Error", "Press A to continue");
         }
         return -1;
     }
@@ -935,22 +890,10 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
     // Success - Trigger green LED notification
     led_notification_green();
 
-    consoleClear();
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    printf("\x1b[6;1HExtraction complete!\n\n");
-    printf("\x1b[8;1HFormat: %s\n", type_name);
-    printf("\x1b[9;1HExtracted %d file(s)\n", file_count);
-    printf("\x1b[10;1HLocation: %s\n", output_dir);
-    printf("\x1b[12;1H[LED: Green = All Complete]");
-    printf("\x1b[14;1HPress A to continue\n");
-
+    gui_draw_status("Extraction Complete!", "Press A to continue");
     while (aptMainLoop()) {
         hidScanInput();
         if (hidKeysDown() & KEY_A) break;
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
     }
 
     return 0;
@@ -1045,40 +988,25 @@ int main(int argc, char** argv) {
     ret = mkdir("sdmc:/3ds", 0777);
     ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
-    
-    printf("\x1b[6;1HLoading config...\n");
-    gfxFlushBuffers();
-    gfxSwapBuffers();
-    gspWaitForVBlank();
 
     // Try to read configuration file
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
 
-    // Clear screen for main menu
-    consoleClear();
-
     // If config doesn't exist, create an example one
     if (url_count < 0) {
-        consoleClear();
-        printf("\x1b[2;1HArchive Extractor for 3DS");
-        printf("\x1b[4;1H================================");
-        printf("\x1b[6;1HConfig file not found!");
-        printf("\x1b[8;1HCreating example config...");
-
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
+        gui_draw_status("Archive Extractor for 3DS", "Creating example config...");
 
         if (create_example_config(CONFIG_FILE_PATH)) {
-            printf("\x1b[10;1HConfig file created:");
-            printf("\x1b[11;1H  %s", CONFIG_FILE_PATH);
-            printf("\x1b[13;1HPlease edit the file and add");
-            printf("\x1b[14;1Hyour download URLs.");
-            printf("\x1b[16;1HYou can now:");
-            printf("\x1b[17;1H  1. Close this app");
-            printf("\x1b[18;1H  2. Edit config.txt on SD");
-            printf("\x1b[19;1H  3. Restart the app");
-            printf("\x1b[21;1HPress START to exit");
+            gui_draw_status("Archive Extractor for 3DS", "Config created! Edit and restart.");
+
+            // Wait for user to press START
+            while (aptMainLoop()) {
+                hidScanInput();
+                if (hidKeysDown() & KEY_START) break;
+                // Keep rendering the same screen
+                gui_draw_status("Archive Extractor for 3DS",
+                    "Config created at sdmc:/3ds/zip-extractor/config.txt - Press START");
+            }
 
             // Set default values for queue
             strncpy(queue->extract_path, DEFAULT_EXTRACT_PATH, MAX_PATH_LENGTH - 1);
@@ -1088,25 +1016,14 @@ int main(int argc, char** argv) {
             queue->count = 0;
             url_count = 0;
         } else {
-            printf("\x1b[10;1HError: Cannot create config!");
-            printf("\x1b[12;1HSD card may be read-only or");
-            printf("\x1b[13;1Hfull. Please create manually:");
-            printf("\x1b[15;1H  %s", CONFIG_FILE_PATH);
-            printf("\x1b[17;1HPress START to exit");
+            gui_draw_error("Error", "Cannot create config! SD read-only?");
             url_count = -1;
         }
 
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
-
-        // Wait for user to press START
+        // Wait for user to press START then exit
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_START) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
         }
 
         // Exit after showing message
