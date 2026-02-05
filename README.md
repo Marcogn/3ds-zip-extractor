@@ -183,13 +183,14 @@ Example: Simply paste `https://drive.google.com/file/d/1ABC123xyz/view` in confi
 ## Technical Details
 
 Built with:
+- **citro2d/citro3d** - GPU-accelerated 2D/3D graphics rendering
 - **libarchive** - Multi-format archive extraction
 - **libcurl** - HTTP/HTTPS downloads
 - **mbedtls** - SSL/TLS support
 - **zlib, libbz2, liblzma, libzstd** - Compression libraries
 - **libctru** - Nintendo 3DS system library
 
-**Note**: GUI rendering (citro2d/citro3d) is disabled for maximum stability. Console-only interface is used.
+**GUI**: Dark blue themed graphical interface with progress bars and panels rendered via citro2d.
 
 ---
 

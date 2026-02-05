@@ -1,50 +1,43 @@
 #ifndef GUI_H
 #define GUI_H
 
+#include <citro2d.h>
+#include <citro3d.h>
 #include <3ds.h>
 
-// GUI disabled for stability on real hardware
-// Console-only mode is used instead
+// Dark blue theme colors
+#define COLOR_BG        C2D_Color32(15, 20, 40, 255)      // Blu scuro per sfondo
+#define COLOR_PANEL     C2D_Color32(25, 35, 60, 255)      // Pannelli
+#define COLOR_TEXT      C2D_Color32(255, 255, 255, 255)   // Testo bianco
+#define COLOR_ACCENT    C2D_Color32(60, 120, 240, 255)    // Blu chiaro accento
+#define COLOR_SUCCESS   C2D_Color32(76, 175, 80, 255)     // Verde successo
+#define COLOR_ERROR     C2D_Color32(244, 67, 54, 255)     // Rosso errore
+#define COLOR_PENDING   C2D_Color32(120, 130, 150, 255)   // Grigio pending
+#define COLOR_PROGRESS  C2D_Color32(100, 180, 255, 255)   // Blu progress
 
-// Dummy colors for compatibility (not used)
-#define COLOR_BG        0
-#define COLOR_TEXT      0
-#define COLOR_ACCENT    0
-#define COLOR_SUCCESS   0
-#define COLOR_ERROR     0
-#define COLOR_PENDING   0
-#define COLOR_PROGRESS  0
-
-// GUI state (unused - kept for compatibility)
+// GUI state
 typedef struct {
-    void* top_screen;
-    void* bottom_screen;
+    C3D_RenderTarget* top_screen;
+    C3D_RenderTarget* bottom_screen;
     bool initialized;
 } GUI;
 
-// Initialize the hybrid GUI system
+// Initialize the GUI system
 bool gui_init(GUI* gui);
 
 // Cleanup GUI resources
 void gui_cleanup(GUI* gui);
 
-// Draw a progress bar on screen
-void gui_draw_progress_bar(float x, float y, float width, float height, 
-                           float progress, u32 color_fill, u32 color_bg);
-
-// Draw text overlay on console
-void gui_draw_text_overlay(const char* text, float x, float y, u32 color);
-
-// Begin rendering frame
+// Frame management
 void gui_begin_frame(GUI* gui);
-
-// End rendering frame and display
 void gui_end_frame(GUI* gui);
 
-// Draw download progress overlay
+// Drawing functions
+void gui_draw_progress_bar(float x, float y, float width, float height,
+                           float progress, u32 color_fill, u32 color_bg);
+void gui_draw_top_screen(const char* title, const char* status, const char* info);
+void gui_draw_bottom_screen(const char* controls);
 void gui_draw_download_progress(float progress, u64 downloaded, u64 total);
-
-// Draw extraction progress overlay
 void gui_draw_extraction_progress(u64 files_extracted, const char* current_file);
 
 #endif // GUI_H
