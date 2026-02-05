@@ -189,6 +189,8 @@ Built with:
 - **zlib, libbz2, liblzma, libzstd** - Compression libraries
 - **libctru** - Nintendo 3DS system library
 
+**Note**: GUI rendering (citro2d/citro3d) is disabled for maximum stability. Console-only interface is used.
+
 ---
 
 ## FAQ

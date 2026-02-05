@@ -63,7 +63,8 @@ LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 # Multi-format archive support with libarchive
 # Supports: ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD, 7Z, RAR (read-only)
-LIBS	:= -lcitro2d -lcitro3d -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
+# Note: citro2d/citro3d removed - GUI disabled for stability
+LIBS	:= -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -larchive -llzma -lbz2 -lzstd -lz -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
