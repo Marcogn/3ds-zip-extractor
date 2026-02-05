@@ -40,9 +40,9 @@ GRAPHICS	:=	gfx
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(BUILD)
 
-APP_TITLE	:=	Archive Extractor
-APP_DESCRIPTION	:=	Download and extract multiple formats
-APP_AUTHOR	:=	Marcogn
+APP_TITLE	:=	3DS Zip Extractor
+APP_DESCRIPTION	:=	Download and extract archives
+APP_AUTHOR	:=	Homebrew
 ICON		:=	icon.png
 
 #---------------------------------------------------------------------------------
@@ -141,6 +141,23 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 			-I$(CURDIR)/$(BUILD)
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+ifeq ($(strip $(ICON)),)
+	icons := $(wildcard *.png)
+	ifneq (,$(findstring $(TARGET).png,$(icons)))
+		export APP_ICON := $(TOPDIR)/$(TARGET).png
+	else
+		ifneq (,$(findstring icon.png,$(icons)))
+			export APP_ICON := $(TOPDIR)/icon.png
+		endif
+	endif
+else
+	export APP_ICON := $(TOPDIR)/$(ICON)
+endif
+
+ifeq ($(strip $(NO_SMDH)),)
+	export _3DSXFLAGS += --smdh=$(CURDIR)/$(TARGET).smdh
+endif
 
 .PHONY: $(BUILD) clean all
 

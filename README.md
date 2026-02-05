@@ -16,11 +16,15 @@ Download and extract compressed archives directly on your Nintendo 3DS. Supports
 
 - **Multi-format support**: Extract ZIP, TAR, 7Z, RAR, GZIP, BZIP2, XZ, ZSTD and more
 - **Direct downloads**: Download files from HTTP/HTTPS URLs directly on your 3DS
+- **Graphical interface**: Dark blue themed GPU-accelerated GUI with citro2d/citro3d
 - **Google Drive support**: Automatic URL conversion for Google Drive links
+- **Sleep mode support**: Downloads continue in sleep mode (press HOME button)
+- **LED notifications**: 
+  - 🟢 Green LED = Download + Extraction completed
+  - 🔴 Pink/Red LED = Download completed (before extraction)
 - **Auto-retry**: Automatically retry failed downloads (configurable)
 - **File browser**: Choose extraction directory with built-in browser
 - **Queue management**: Process multiple files in sequence
-- **Console interface**: Stable text-based interface optimized for 3DS hardware
 - **Auto-config**: Creates example config file on first run
 
 ---

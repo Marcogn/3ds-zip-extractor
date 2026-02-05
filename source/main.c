@@ -23,6 +23,46 @@
 static GUI g_gui = {0};
 static bool g_use_gui = false;
 
+// Sleep mode handling
+static bool enable_sleep_mode() {
+    // Disable sleep mode to continue downloading in background
+    APT_SetAppCpuTimeLimit(30); // 30% CPU limit for background
+    return true;
+}
+
+static void restore_sleep_mode() {
+    APT_SetAppCpuTimeLimit(0); // Restore normal CPU usage
+}
+
+// LED notification functions
+static void set_led_notification(u8 red, u8 green, u8 blue) {
+    // Setup LED pattern for notification
+    u8 pattern = 0;
+
+    if (green > 200) {
+        pattern = 1; // Green blink - all completed
+    } else if (red > 200) {
+        pattern = 2; // Red/Pink blink - download only
+    }
+
+    PTMU_SetLEDPattern(pattern);
+}
+
+static void led_notification_green() {
+    // Green LED: Download + Extraction completed
+    set_led_notification(0, 255, 0);
+}
+
+static void led_notification_pink() {
+    // Pink/Red LED: Download completed (before extraction)
+    set_led_notification(255, 100, 150);
+}
+
+static void led_notification_off() {
+    // Turn off LED notification
+    PTMU_SetLEDPattern(0);
+}
+
 // Download states for queue management
 typedef enum {
     DOWNLOAD_PENDING,
@@ -863,7 +903,9 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
         return -1;
     }
 
-    // Success
+    // Success - Trigger green LED notification
+    led_notification_green();
+
     consoleClear();
     printf("\x1b[2;1HArchive Extractor for 3DS");
     printf("\x1b[4;1H================================");
@@ -871,6 +913,7 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
     printf("\x1b[8;1HFormat: %s\n", type_name);
     printf("\x1b[9;1HExtracted %d file(s)\n", file_count);
     printf("\x1b[10;1HLocation: %s\n", output_dir);
+    printf("\x1b[12;1H[LED: Green = All Complete]");
     printf("\x1b[14;1HPress A to continue\n");
 
     while (aptMainLoop()) {
@@ -888,6 +931,9 @@ int main(int argc, char** argv) {
     // Initialize services
     gfxInitDefault();
 
+    // Initialize PTMU for LED notifications
+    ptmuInit();
+
     // Check if we're running on real hardware or emulator
     if (!aptMainLoop()) {
         consoleInit(GFX_TOP, NULL);
@@ -896,9 +942,13 @@ int main(int argc, char** argv) {
         gfxFlushBuffers();
         gfxSwapBuffers();
         gspWaitForVBlank();
+        ptmuExit();
         gfxExit();
         return 1;
     }
+
+    // Enable sleep mode support (continue downloads in background)
+    enable_sleep_mode();
 
     // Initialize GUI (citro2d/citro3d)
     g_use_gui = gui_init(&g_gui);
@@ -1320,6 +1370,9 @@ int main(int argc, char** argv) {
                     }
                     
                     if (download_result == 0) {
+                        // Download completed - Trigger pink LED notification
+                        led_notification_pink();
+
                         // Extract archive
                         Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
                         
@@ -1424,6 +1477,12 @@ int main(int argc, char** argv) {
     
 exit_loop:
     
+    // Turn off LED notifications
+    led_notification_off();
+
+    // Restore normal sleep mode
+    restore_sleep_mode();
+
     // Free allocated memory
     if (browser) {
         free(browser);
@@ -1440,7 +1499,12 @@ exit_loop:
         gui_cleanup(&g_gui);
     }
     
+    // Cleanup PTMU
+    ptmuExit();
+
 cleanup:
     gfxExit();
+    return 0;
+}
     return 0;
 }

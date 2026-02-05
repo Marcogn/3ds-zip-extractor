@@ -91,33 +91,6 @@ void gui_draw_progress_bar(float x, float y, float width, float height,
     }
 }
 
-// Draw top screen with title and status
-void gui_draw_top_screen(const char* title, const char* status, const char* info) {
-    // Clear with dark blue background
-    C2D_TargetClear(C3D_RenderTargetGetColorBuffer(NULL, GFX_TOP, GFX_LEFT), COLOR_BG);
-
-    C2D_SceneBegin(NULL);
-
-    // Title bar
-    draw_panel(10, 10, 380, 40, COLOR_PANEL, COLOR_ACCENT);
-
-    // Status panel
-    draw_panel(10, 60, 380, 160, COLOR_PANEL, COLOR_ACCENT);
-
-    // Note: Text rendering requires custom font setup
-    // For now we use console overlay for text
-}
-
-// Draw bottom screen with controls
-void gui_draw_bottom_screen(const char* controls) {
-    // Clear with dark blue background
-    C2D_TargetClear(C3D_RenderTargetGetColorBuffer(NULL, GFX_BOTTOM, GFX_LEFT), COLOR_BG);
-
-    C2D_SceneBegin(NULL);
-
-    // Control panel
-    draw_panel(10, 10, 300, 220, COLOR_PANEL, COLOR_ACCENT);
-}
 
 // Draw download progress on bottom screen
 void gui_draw_download_progress(float progress, u64 downloaded, u64 total) {

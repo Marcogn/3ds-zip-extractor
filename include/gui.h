@@ -35,8 +35,6 @@ void gui_end_frame(GUI* gui);
 // Drawing functions
 void gui_draw_progress_bar(float x, float y, float width, float height,
                            float progress, u32 color_fill, u32 color_bg);
-void gui_draw_top_screen(const char* title, const char* status, const char* info);
-void gui_draw_bottom_screen(const char* controls);
 void gui_draw_download_progress(float progress, u64 downloaded, u64 total);
 void gui_draw_extraction_progress(u64 files_extracted, const char* current_file);
 
