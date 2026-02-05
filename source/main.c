@@ -188,30 +188,73 @@ static int load_directory(FileBrowser* browser) {
     return browser->count;
 }
 
-// Display file browser
+// Display file browser using GUI
 static void display_file_browser(FileBrowser* browser, int scroll_offset) {
-    consoleClear();
-    printf("\x1b[1;1HFile Browser - Select Extract Path");
-    printf("\x1b[2;1H================================");
-    printf("\x1b[3;1HCurrent: %.40s", browser->current_path);
-    printf("\x1b[4;1H================================");
-    
-    int visible_lines = 14;
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    C2D_TargetClear(g_top, COLOR_BG);
+    C2D_SceneBegin(g_top);
+
+    C2D_TextBufClear(g_textBuf);
+    C2D_Text text;
+    float y = 5.0f;
+
+    // Title bar
+    C2D_DrawRectSolid(0, 0, 0.5f, 400, 22, COLOR_ACCENT);
+    C2D_TextParse(&text, g_textBuf, " File Browser - Select Path");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 5.0f, 3.0f, 0.5f, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255));
+    y = 25.0f;
+
+    // Current path
+    char pathBuf[64];
+    snprintf(pathBuf, sizeof(pathBuf), "%.50s", browser->current_path);
+    C2D_TextParse(&text, g_textBuf, pathBuf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+    y += 15.0f;
+
+    C2D_DrawRectSolid(10, y, 0.5f, 380, 1, COLOR_ACCENT);
+    y += 5.0f;
+
+    // File list
+    int visible_lines = 10;
     int start = scroll_offset;
     int end = start + visible_lines;
     if (end > browser->count) end = browser->count;
     
     for (int i = start; i < end; i++) {
-        int line = 6 + (i - start);
-        const char* marker = (i == browser->selected) ? ">" : " ";
-        const char* type_marker = browser->entries[i].is_directory ? "/" : " ";
-        
-        printf("\x1b[%d;1H%s %.42s%s", line, marker, browser->entries[i].name, type_marker);
+        char lineBuf[64];
+        const char* type_marker = browser->entries[i].is_directory ? "/" : "";
+        snprintf(lineBuf, sizeof(lineBuf), "%.45s%s", browser->entries[i].name, type_marker);
+
+        if (i == browser->selected) {
+            C2D_DrawRectSolid(10, y - 1, 0.5f, 380, 14, COLOR_ACCENT);
+            C2D_TextParse(&text, g_textBuf, lineBuf);
+            C2D_TextOptimize(&text);
+            C2D_DrawText(&text, C2D_WithColor, 15.0f, y, 0.5f, 0.38f, 0.38f, C2D_Color32(0, 0, 0, 255));
+        } else {
+            C2D_TextParse(&text, g_textBuf, lineBuf);
+            C2D_TextOptimize(&text);
+            C2D_DrawText(&text, C2D_WithColor, 15.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
+        }
+        y += 14.0f;
     }
     
-    printf("\x1b[21;1HD-Pad: Navigate  A: Select/Enter");
-    printf("\x1b[22;1HY: Use Current  B: Cancel");
-    printf("\x1b[23;1HX: Create New Folder");
+    // Controls
+    y = 200.0f;
+    C2D_TextParse(&text, g_textBuf, "D-Pad: Navigate  A: Enter  Y: Select");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
+    y += 12.0f;
+    C2D_TextParse(&text, g_textBuf, "B: Cancel  X: New Folder");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_TEXT);
+
+    C2D_TargetClear(g_bottom, COLOR_BG);
+    C2D_SceneBegin(g_bottom);
+
+    C3D_FrameEnd(0);
 }
 
 // Forward declaration
@@ -351,38 +394,73 @@ static bool create_example_config(const char* file_path) {
     return true;
 }
 
-// Display queue status
+// Display queue status using GUI
 static void display_queue_status(DownloadQueue* queue, int current_page) {
-    consoleClear();
-    printf("\x1b[1;1HArchive Extractor - Queue Status");
-    printf("\x1b[2;1H================================");
-    
-    int items_per_page = 12;
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    C2D_TargetClear(g_top, COLOR_BG);
+    C2D_SceneBegin(g_top);
+
+    C2D_TextBufClear(g_textBuf);
+    C2D_Text text;
+    float y = 5.0f;
+
+    // Title bar
+    C2D_DrawRectSolid(0, 0, 0.5f, 400, 22, COLOR_ACCENT);
+    C2D_TextParse(&text, g_textBuf, " Queue Status");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 5.0f, 3.0f, 0.5f, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255));
+    y = 25.0f;
+
+    int items_per_page = 10;
     int start = current_page * items_per_page;
     int end = start + items_per_page;
     if (end > queue->count) end = queue->count;
     
-    printf("\x1b[4;1HShowing %d-%d of %d", start + 1, end, queue->count);
-    
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Showing %d-%d of %d", start + 1, end, queue->count);
+    C2D_TextParse(&text, g_textBuf, buf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+    y += 15.0f;
+
     for (int i = start; i < end; i++) {
-        int line = 6 + (i - start);
         const char* state_str = "?";
-        
+        u32 state_color = COLOR_TEXT;
+
         switch (queue->items[i].state) {
-            case DOWNLOAD_PENDING: state_str = "[ ]"; break;
-            case DOWNLOAD_IN_PROGRESS: state_str = "[>]"; break;
-            case DOWNLOAD_COMPLETED: state_str = "[✓]"; break;
-            case DOWNLOAD_FAILED: state_str = "[X]"; break;
-            case DOWNLOAD_SKIPPED: state_str = "[-]"; break;
+            case DOWNLOAD_PENDING: state_str = "[ ]"; state_color = COLOR_PENDING; break;
+            case DOWNLOAD_IN_PROGRESS: state_str = "[>]"; state_color = COLOR_PROGRESS; break;
+            case DOWNLOAD_COMPLETED: state_str = "[OK]"; state_color = COLOR_SUCCESS; break;
+            case DOWNLOAD_FAILED: state_str = "[X]"; state_color = COLOR_ERROR; break;
+            case DOWNLOAD_SKIPPED: state_str = "[-]"; state_color = COLOR_PENDING; break;
         }
         
-        printf("\x1b[%d;1H%s %.38s", line, state_str, queue->items[i].url);
+        snprintf(buf, sizeof(buf), "%s %.42s", state_str, queue->items[i].url);
+        C2D_TextParse(&text, g_textBuf, buf);
+        C2D_TextOptimize(&text);
+        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.33f, 0.33f, state_color);
+        y += 13.0f;
     }
     
     int total_pages = (queue->count + items_per_page - 1) / items_per_page;
-    printf("\x1b[20;1HPage %d/%d", current_page + 1, total_pages);
-    printf("\x1b[22;1HL/R: Change page  Y: Skip failed");
-    printf("\x1b[23;1HA: Continue  B: Back  START: Exit");
+    if (total_pages == 0) total_pages = 1;
+
+    y = 195.0f;
+    snprintf(buf, sizeof(buf), "Page %d/%d", current_page + 1, total_pages);
+    C2D_TextParse(&text, g_textBuf, buf);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
+    y += 14.0f;
+
+    C2D_TextParse(&text, g_textBuf, "L/R: Page  Y: Skip failed  B: Back");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
+
+    C2D_TargetClear(g_bottom, COLOR_BG);
+    C2D_SceneBegin(g_bottom);
+
+    C3D_FrameEnd(0);
 }
 
 // Function to convert Google Drive URLs to direct download links
@@ -1039,38 +1117,6 @@ int main(int argc, char** argv) {
         extract_path = queue->extract_path;
     }
     
-    printf("\x1b[2;1HArchive Extractor for 3DS");
-    printf("\x1b[4;1H================================");
-    
-    if (url_count > 0) {
-        printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
-        printf("\x1b[8;1HConfig file:");
-        printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-        printf("\x1b[11;1HExtract path:");
-        printf("\x1b[12;1H  %s", extract_path);
-        if (queue->auto_retry) {
-            printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
-        }
-        printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
-        printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
-        printf("\x1b[17;1HPress A to start downloads");
-        printf("\x1b[18;1HPress X to view queue");
-        printf("\x1b[19;1HPress SELECT to browse path");
-        printf("\x1b[20;1HPress START to exit");
-    } else {
-        printf("\x1b[6;1HNo config file found!");
-        printf("\x1b[8;1HPlease create:");
-        printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-        printf("\x1b[11;1HAdd URLs (one per line) or");
-        printf("\x1b[12;1Huse old format at:");
-        printf("\x1b[13;1H  sdmc:/3ds/zip-extractor/urls.txt");
-        printf("\x1b[15;1HExample config.txt:");
-        printf("\x1b[16;1H  extract_path=/extracted/");
-        printf("\x1b[17;1H  auto_retry=true");
-        printf("\x1b[18;1H  https://example.com/file.zip");
-        printf("\x1b[20;1HPress START to exit");
-    }
-    
     bool started = false;
     bool cancelled = false;
     bool show_queue = false;
@@ -1080,13 +1126,13 @@ int main(int argc, char** argv) {
     // Allocate browser on heap to avoid stack overflow
     FileBrowser* browser = (FileBrowser*)calloc(1, sizeof(FileBrowser));
     if (!browser) {
-        printf("\nFailed to allocate browser memory!\n");
-        printf("File browser will be disabled\n");
+        gui_draw_error("Warning", "File browser disabled (memory)");
         // Continue without browser
     }
 
     int browser_scroll = 0;
     
+    // Main loop - MUST render every frame like fast-uninstall
     while (aptMainLoop()) {
         hidScanInput();
         u32 kDown = hidKeysDown();
@@ -1095,20 +1141,27 @@ int main(int argc, char** argv) {
             break;
         }
         
+        // Render current screen state
+        if (!started && !show_queue && !show_browser) {
+            // Main menu - render every frame
+            gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
+                              queue->auto_retry, queue->max_retries);
+        }
+
         // File browser
         if (show_browser) {
+            // TODO: implement gui_draw_file_browser
             if (kDown & KEY_UP) {
-                if (browser->selected > 0) {
+                if (browser && browser->selected > 0) {
                     browser->selected--;
                     if (browser->selected < browser_scroll) {
                         browser_scroll = browser->selected;
                     }
                 }
-                display_file_browser(browser, browser_scroll);
             }
             
             if (kDown & KEY_DOWN) {
-                if (browser->selected < browser->count - 1) {
+                if (browser && browser->selected < browser->count - 1) {
                     browser->selected++;
                     if (browser->selected >= browser_scroll + 14) {
                         browser_scroll = browser->selected - 13;
