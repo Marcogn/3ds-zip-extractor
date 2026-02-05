@@ -28,6 +28,5 @@ lib/
 # Debug files
 *.map
 
-# Documentation archive (keep but don't track changes)
-docs/archive/
-
+# Nested duplicated directories
+_codeql_detected_source_root/

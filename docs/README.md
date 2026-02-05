@@ -28,10 +28,7 @@ docs/
 ├── README.md          # This file
 ├── USER_GUIDE.md      # Complete user guide
 ├── TECHNICAL.md       # Technical documentation
-├── DEVELOPMENT.md     # Developer notes
-└── archive/           # Historical documentation
-    ├── README_v1.md
-    └── [other historical files...]
+└── DEVELOPMENT.md     # Developer notes
 ```
 
 ---
@@ -40,6 +37,7 @@ docs/
 
 ### Root Documentation
 - [Main README](../README.md) - Project overview
+- [CHANGELOG.md](../CHANGELOG.md) - Version history
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - How to contribute
 - [SECURITY.md](../SECURITY.md) - Security policy
 - [LICENSE](../LICENSE) - MIT License

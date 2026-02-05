@@ -6,11 +6,25 @@
 bool gui_init(GUI* gui) {
     if (!gui) return false;
     
-    // Initialize citro3d
-    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
-    
-    // Initialize citro2d
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    // DISABLED: citro3d/citro2d causes data abort on real hardware
+    // Use console-only mode instead for stability
+
+    // Mark as not initialized to force console-only mode
+    gui->initialized = false;
+    return false;
+
+    /* COMMENTED OUT TO PREVENT DATA ABORT
+    // Try to initialize citro3d - may fail on some systems
+    if (!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE)) {
+        return false;
+    }
+
+    // Try to initialize citro2d
+    if (!C2D_Init(C2D_DEFAULT_MAX_OBJECTS)) {
+        C3D_Fini();
+        return false;
+    }
+
     C2D_Prepare();
     
     // Create render targets
@@ -24,6 +38,7 @@ bool gui_init(GUI* gui) {
     
     gui->initialized = true;
     return true;
+    */
 }
 
 // Cleanup GUI resources

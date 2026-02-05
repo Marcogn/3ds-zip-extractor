@@ -273,6 +273,38 @@ static int read_config_file(const char* file_path, DownloadQueue* queue) {
     return queue->count;
 }
 
+// Create example config file if it doesn't exist
+static bool create_example_config(const char* file_path) {
+    FILE* file = fopen(file_path, "w");
+    if (!file) {
+        return false;
+    }
+
+    // Write example configuration
+    fprintf(file, "# 3DS Archive Extractor - Configuration File\n");
+    fprintf(file, "# Lines starting with # are comments\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Settings:\n");
+    fprintf(file, "extract_path=sdmc:/extracted/\n");
+    fprintf(file, "auto_retry=true\n");
+    fprintf(file, "max_retries=3\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Add your URLs below (one per line):\n");
+    fprintf(file, "# Example:\n");
+    fprintf(file, "# https://example.com/file.zip\n");
+    fprintf(file, "# https://drive.google.com/file/d/FILE_ID/view\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Supported formats:\n");
+    fprintf(file, "# ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD\n");
+    fprintf(file, "# 7Z, RAR, GZIP, BZIP2, XZ, ZSTD\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Add your URLs here:\n");
+    fprintf(file, "\n");
+
+    fclose(file);
+    return true;
+}
+
 // Display queue status
 static void display_queue_status(DownloadQueue* queue, int current_page) {
     consoleClear();
@@ -829,28 +861,64 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 }
 
 int main(int argc, char** argv) {
+    // Initialize services
     gfxInitDefault();
     consoleInit(GFX_TOP, NULL);
     
-    // Initialize hybrid GUI
+    // Check if we're running on real hardware or emulator
+    if (!aptMainLoop()) {
+        printf("Failed to initialize APT service\n");
+        printf("Press any button to exit...\n");
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+        gfxExit();
+        return 1;
+    }
+
+    printf("\x1b[1;1HArchive Extractor for 3DS");
+    printf("\x1b[2;1HInitializing...\n");
+    gfxFlushBuffers();
+    gfxSwapBuffers();
+    gspWaitForVBlank();
+
+    // Initialize hybrid GUI (optional)
     g_use_gui = gui_init(&g_gui);
     if (!g_use_gui) {
-        printf("Warning: GUI initialization failed\n");
-        printf("Falling back to console-only mode\n");
+        printf("GUI init: Console mode\n");
+    } else {
+        printf("GUI init: Hybrid mode\n");
     }
     
     // Initialize networking
     Result ret = 0;
     u32* socMemory = (u32*)memalign(0x1000, 0x100000);
     if (!socMemory) {
-        printf("Failed to allocate socket memory\n");
+        printf("\nFailed to allocate socket memory!\n");
+        printf("Press START to exit\n");
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
         goto cleanup;
     }
     
     ret = socInit(socMemory, 0x100000);
     if (ret != 0) {
-        printf("socInit failed: 0x%08lX\n", ret);
+        printf("\nsocInit failed: 0x%08lX\n", ret);
+        printf("Network initialization failed!\n");
+        printf("Press START to exit\n");
         free(socMemory);
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
         goto cleanup;
     }
     
@@ -858,17 +926,91 @@ int main(int argc, char** argv) {
     curl_global_init(CURL_GLOBAL_ALL);
     
     const char* extract_path = DEFAULT_EXTRACT_PATH;
-    DownloadQueue queue = {0};
-    
+
+    // Allocate queue on heap to avoid stack overflow (structure is very large)
+    DownloadQueue* queue = (DownloadQueue*)calloc(1, sizeof(DownloadQueue));
+    if (!queue) {
+        printf("\nFailed to allocate queue memory!\n");
+        printf("Press START to exit\n");
+        curl_global_cleanup();
+        socExit();
+        free(socMemory);
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
+        goto cleanup;
+    }
+
     // Create config directory if it doesn't exist
     ret = mkdir("sdmc:/3ds", 0777);
     ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
     
     // Try to read configuration file
-    int url_count = read_config_file(CONFIG_FILE_PATH, &queue);
+    int url_count = read_config_file(CONFIG_FILE_PATH, queue);
+
+    // If config doesn't exist, create an example one
+    if (url_count < 0) {
+        consoleClear();
+        printf("\x1b[2;1HArchive Extractor for 3DS");
+        printf("\x1b[4;1H================================");
+        printf("\x1b[6;1HConfig file not found!");
+        printf("\x1b[8;1HCreating example config...");
+
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+
+        if (create_example_config(CONFIG_FILE_PATH)) {
+            printf("\x1b[10;1HConfig file created:");
+            printf("\x1b[11;1H  %s", CONFIG_FILE_PATH);
+            printf("\x1b[13;1HPlease edit the file and add");
+            printf("\x1b[14;1Hyour download URLs.");
+            printf("\x1b[16;1HYou can now:");
+            printf("\x1b[17;1H  1. Close this app");
+            printf("\x1b[18;1H  2. Edit config.txt on SD");
+            printf("\x1b[19;1H  3. Restart the app");
+            printf("\x1b[21;1HPress START to exit");
+
+            // Set default values for queue
+            strncpy(queue->extract_path, DEFAULT_EXTRACT_PATH, MAX_PATH_LENGTH - 1);
+            queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
+            queue->auto_retry = true;
+            queue->max_retries = 3;
+            queue->count = 0;
+            url_count = 0;
+        } else {
+            printf("\x1b[10;1HError: Cannot create config!");
+            printf("\x1b[12;1HSD card may be read-only or");
+            printf("\x1b[13;1Hfull. Please create manually:");
+            printf("\x1b[15;1H  %s", CONFIG_FILE_PATH);
+            printf("\x1b[17;1HPress START to exit");
+            url_count = -1;
+        }
+
+        gfxFlushBuffers();
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+
+        // Wait for user to press START
+        while (aptMainLoop()) {
+            hidScanInput();
+            if (hidKeysDown() & KEY_START) break;
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            gspWaitForVBlank();
+        }
+
+        // Exit after showing message
+        goto exit_loop;
+    }
+
     if (url_count > 0) {
-        extract_path = queue.extract_path;
+        extract_path = queue->extract_path;
     }
     
     printf("\x1b[2;1HArchive Extractor for 3DS");
@@ -880,8 +1022,8 @@ int main(int argc, char** argv) {
         printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
         printf("\x1b[11;1HExtract path:");
         printf("\x1b[12;1H  %s", extract_path);
-        if (queue.auto_retry) {
-            printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+        if (queue->auto_retry) {
+            printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
         }
         printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
         printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -908,7 +1050,15 @@ int main(int argc, char** argv) {
     bool show_queue = false;
     bool show_browser = false;
     int queue_page = 0;
-    FileBrowser browser = {0};
+
+    // Allocate browser on heap to avoid stack overflow
+    FileBrowser* browser = (FileBrowser*)calloc(1, sizeof(FileBrowser));
+    if (!browser) {
+        printf("\nFailed to allocate browser memory!\n");
+        printf("File browser will be disabled\n");
+        // Continue without browser
+    }
+
     int browser_scroll = 0;
     
     while (aptMainLoop()) {
@@ -922,60 +1072,69 @@ int main(int argc, char** argv) {
         // File browser
         if (show_browser) {
             if (kDown & KEY_UP) {
-                if (browser.selected > 0) {
-                    browser.selected--;
-                    if (browser.selected < browser_scroll) {
-                        browser_scroll = browser.selected;
+                if (browser->selected > 0) {
+                    browser->selected--;
+                    if (browser->selected < browser_scroll) {
+                        browser_scroll = browser->selected;
                     }
                 }
-                display_file_browser(&browser, browser_scroll);
+                display_file_browser(browser, browser_scroll);
             }
             
             if (kDown & KEY_DOWN) {
-                if (browser.selected < browser.count - 1) {
-                    browser.selected++;
-                    if (browser.selected >= browser_scroll + 14) {
-                        browser_scroll = browser.selected - 13;
+                if (browser->selected < browser->count - 1) {
+                    browser->selected++;
+                    if (browser->selected >= browser_scroll + 14) {
+                        browser_scroll = browser->selected - 13;
                     }
                 }
-                display_file_browser(&browser, browser_scroll);
+                display_file_browser(browser, browser_scroll);
             }
             
             if (kDown & KEY_A) {
                 // Enter directory or select
-                if (browser.entries[browser.selected].is_directory) {
-                    if (strcmp(browser.entries[browser.selected].name, "..") == 0) {
+                if (browser->entries[browser->selected].is_directory) {
+                    if (strcmp(browser->entries[browser->selected].name, "..") == 0) {
                         // Go up one directory
-                        char* last_slash = strrchr(browser.current_path, '/');
-                        if (last_slash != NULL && last_slash != browser.current_path) {
+                        char* last_slash = strrchr(browser->current_path, '/');
+                        if (last_slash != NULL && last_slash != browser->current_path) {
                             *last_slash = '\0';
                             // Handle case where we're at sdmc:/something
-                            if (strncmp(browser.current_path, "sdmc:", 5) == 0 && strlen(browser.current_path) == 5) {
-                                strcat(browser.current_path, "/");
+                            if (strncmp(browser->current_path, "sdmc:", 5) == 0 && strlen(browser->current_path) == 5) {
+                                strcat(browser->current_path, "/");
                             }
                         }
                     } else {
-                        // Enter subdirectory
-                        if (browser.current_path[strlen(browser.current_path) - 1] != '/') {
-                            strcat(browser.current_path, "/");
+                        // Enter subdirectory - use safe string operations
+                        size_t path_len = strlen(browser->current_path);
+                        size_t name_len = strlen(browser->entries[browser->selected].name);
+
+                        // Check if we have enough space
+                        if (path_len + name_len + 2 < MAX_PATH_LENGTH) {
+                            if (browser->current_path[path_len - 1] != '/') {
+                                browser->current_path[path_len] = '/';
+                                browser->current_path[path_len + 1] = '\0';
+                                path_len++;
+                            }
+                            strncat(browser->current_path, browser->entries[browser->selected].name,
+                                   MAX_PATH_LENGTH - path_len - 1);
                         }
-                        strcat(browser.current_path, browser.entries[browser.selected].name);
                     }
-                    load_directory(&browser);
+                    load_directory(browser);
                     browser_scroll = 0;
-                    display_file_browser(&browser, browser_scroll);
+                    display_file_browser(browser, browser_scroll);
                 }
             }
             
             if (kDown & KEY_Y) {
                 // Use current directory
-                strncpy(queue.extract_path, browser.current_path, MAX_PATH_LENGTH - 1);
-                queue.extract_path[MAX_PATH_LENGTH - 1] = '\0';
+                strncpy(queue->extract_path, browser->current_path, MAX_PATH_LENGTH - 1);
+                queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
                 // Ensure path ends with /
-                if (queue.extract_path[strlen(queue.extract_path) - 1] != '/') {
-                    strcat(queue.extract_path, "/");
+                if (queue->extract_path[strlen(queue->extract_path) - 1] != '/') {
+                    strcat(queue->extract_path, "/");
                 }
-                extract_path = queue.extract_path;
+                extract_path = queue->extract_path;
                 show_browser = false;
                 
                 // Return to main menu
@@ -987,8 +1146,8 @@ int main(int argc, char** argv) {
                 printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
                 printf("\x1b[11;1HExtract path:");
                 printf("\x1b[12;1H  %s", extract_path);
-                if (queue.auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                if (queue->auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
                 }
                 printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
                 printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -1010,8 +1169,8 @@ int main(int argc, char** argv) {
                 printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
                 printf("\x1b[11;1HExtract path:");
                 printf("\x1b[12;1H  %s", extract_path);
-                if (queue.auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                if (queue->auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
                 }
                 printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
                 printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -1023,12 +1182,12 @@ int main(int argc, char** argv) {
         }
         
         // Show file browser
-        if ((kDown & KEY_SELECT) && url_count > 0 && !started && !show_queue && !show_browser) {
+        if ((kDown & KEY_SELECT) && url_count > 0 && !started && !show_queue && !show_browser && browser) {
             show_browser = true;
-            init_file_browser(&browser, "sdmc:/");
-            load_directory(&browser);
+            init_file_browser(browser, "sdmc:/");
+            load_directory(browser);
             browser_scroll = 0;
-            display_file_browser(&browser, browser_scroll);
+            display_file_browser(browser, browser_scroll);
         }
         
         // Queue navigation
@@ -1037,22 +1196,22 @@ int main(int argc, char** argv) {
             
             if ((kDown & KEY_R) && queue_page < total_pages - 1) {
                 queue_page++;
-                display_queue_status(&queue, queue_page);
+                display_queue_status(queue, queue_page);
             }
             
             if ((kDown & KEY_L) && queue_page > 0) {
                 queue_page--;
-                display_queue_status(&queue, queue_page);
+                display_queue_status(queue, queue_page);
             }
             
             if (kDown & KEY_Y) {
                 // Skip all failed downloads
                 for (int i = 0; i < url_count; i++) {
-                    if (queue.items[i].state == DOWNLOAD_FAILED) {
-                        queue.items[i].state = DOWNLOAD_SKIPPED;
+                    if (queue->items[i].state == DOWNLOAD_FAILED) {
+                        queue->items[i].state = DOWNLOAD_SKIPPED;
                     }
                 }
-                display_queue_status(&queue, queue_page);
+                display_queue_status(queue, queue_page);
             }
             
             if (kDown & KEY_B) {
@@ -1066,8 +1225,8 @@ int main(int argc, char** argv) {
                 printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
                 printf("\x1b[11;1HExtract path:");
                 printf("\x1b[12;1H  %s", extract_path);
-                if (queue.auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue.max_retries);
+                if (queue->auto_retry) {
+                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
                 }
                 printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
                 printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
@@ -1087,7 +1246,7 @@ int main(int argc, char** argv) {
         if ((kDown & KEY_X) && url_count > 0 && !started && !show_queue) {
             show_queue = true;
             queue_page = 0;
-            display_queue_status(&queue, queue_page);
+            display_queue_status(queue, queue_page);
         }
         
         // Start processing
@@ -1107,16 +1266,16 @@ int main(int argc, char** argv) {
             // Process each URL in queue
             for (int i = 0; i < url_count && !cancelled; i++) {
                 // Skip items that are skipped or already completed
-                if (queue.items[i].state == DOWNLOAD_SKIPPED) {
+                if (queue->items[i].state == DOWNLOAD_SKIPPED) {
                     skipped++;
                     continue;
                 }
-                if (queue.items[i].state == DOWNLOAD_COMPLETED) {
+                if (queue->items[i].state == DOWNLOAD_COMPLETED) {
                     successful++;
                     continue;
                 }
                 
-                queue.items[i].state = DOWNLOAD_IN_PROGRESS;
+                queue->items[i].state = DOWNLOAD_IN_PROGRESS;
                 
                 int retries = 0;
                 bool download_success = false;
@@ -1127,7 +1286,7 @@ int main(int argc, char** argv) {
                     printf("\x1b[4;1H================================");
                     printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
                     if (retries > 0) {
-                        printf("\x1b[7;1HRetry attempt %d/%d", retries, queue.max_retries);
+                        printf("\x1b[7;1HRetry attempt %d/%d", retries, queue->max_retries);
                     }
                     printf("\x1b[9;1HStarting download...");
                     
@@ -1136,7 +1295,7 @@ int main(int argc, char** argv) {
                     gspWaitForVBlank();
                     
                     // Download file
-                    Result download_result = download_file(queue.items[i].url, TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
+                    Result download_result = download_file(queue->items[i].url, TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
                     
                     if (cancelled) {
                         break;
@@ -1147,7 +1306,7 @@ int main(int argc, char** argv) {
                         Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
                         
                         if (extract_result == 0) {
-                            queue.items[i].state = DOWNLOAD_COMPLETED;
+                            queue->items[i].state = DOWNLOAD_COMPLETED;
                             successful++;
                             total_files_extracted += extract_data.extracted_files;
                             download_success = true;
@@ -1155,16 +1314,16 @@ int main(int argc, char** argv) {
                             cancelled = true;
                             break;
                         } else {
-                            strncpy(queue.items[i].error_msg, "Extraction failed", sizeof(queue.items[i].error_msg) - 1);
+                            strncpy(queue->items[i].error_msg, "Extraction failed", sizeof(queue->items[i].error_msg) - 1);
                         }
                         
                         // Clean up temp file
                         remove(TEMP_DOWNLOAD_PATH);
                     } else {
-                        strncpy(queue.items[i].error_msg, "Download failed", sizeof(queue.items[i].error_msg) - 1);
+                        strncpy(queue->items[i].error_msg, "Download failed", sizeof(queue->items[i].error_msg) - 1);
                     }
                     
-                    if (!download_success && queue.auto_retry && retries < queue.max_retries) {
+                    if (!download_success && queue->auto_retry && retries < queue->max_retries) {
                         retries++;
                         // Wait a bit before retry
                         svcSleepThread(2000000000LL); // 2 seconds
@@ -1172,10 +1331,10 @@ int main(int argc, char** argv) {
                         break;
                     }
                     
-                } while (!download_success && retries <= queue.max_retries);
+                } while (!download_success && retries <= queue->max_retries);
                 
                 if (!download_success && !cancelled) {
-                    queue.items[i].state = DOWNLOAD_FAILED;
+                    queue->items[i].state = DOWNLOAD_FAILED;
                     failed++;
                 }
             }
@@ -1219,15 +1378,15 @@ int main(int argc, char** argv) {
                 if ((kDown2 & KEY_X) && failed > 0) {
                     show_queue = true;
                     queue_page = 0;
-                    display_queue_status(&queue, queue_page);
+                    display_queue_status(queue, queue_page);
                     break;
                 }
                 
                 if ((kDown2 & KEY_A) && failed > 0) {
                     // Reset failed items to pending and restart
                     for (int i = 0; i < url_count; i++) {
-                        if (queue.items[i].state == DOWNLOAD_FAILED) {
-                            queue.items[i].state = DOWNLOAD_PENDING;
+                        if (queue->items[i].state == DOWNLOAD_FAILED) {
+                            queue->items[i].state = DOWNLOAD_PENDING;
                         }
                     }
                     started = true;
@@ -1247,6 +1406,14 @@ int main(int argc, char** argv) {
     
 exit_loop:
     
+    // Free allocated memory
+    if (browser) {
+        free(browser);
+    }
+    if (queue) {
+        free(queue);
+    }
+
     curl_global_cleanup();
     socExit();
     free(socMemory);

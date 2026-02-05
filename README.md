@@ -1,85 +1,131 @@
-# 3DS Archive Extractor
+# 🎮 3DS Archive Extractor
 
 <p align="center">
-  <img src="icon.png" alt="3DS Archive Extractor" width="128">
+  <img src="icon.png" alt="3DS Archive Extractor Icon" width="128">
 </p>
 
 <p align="center">
-  <strong>Download and extract compressed archives directly on your Nintendo 3DS</strong><br>
-  <em>Supports 11+ archive formats</em>
+  <strong>📦 Download and extract compressed archives directly on your Nintendo 3DS</strong><br>
+  <em>✨ Supports 11+ archive formats with native GUI</em>
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#supported-formats">Formats</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#documentation">Documentation</a>
+  <a href="#-features">Features</a> •
+  <a href="#-supported-formats">Formats</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-usage">Usage</a> •
+  <a href="#-documentation">Documentation</a>
 </p>
 
----
+<div align="center">
 
-## Features
-✨ **Multi-format Support** - Extract ZIP, TAR, 7Z, RAR, GZIP, BZIP2, XZ and more  
-📥 **Direct Download** - Download files from HTTP/HTTPS directly on your 3DS  
-🔄 **Auto-retry** - Automatically retry failed downloads  
-📂 **File Browser** - Choose where to extract files  
-🎮 **Native GUI** - Optimized graphical interface for 3DS  
-⚡ **Efficient** - Works on Old 3DS, fast on New 3DS  
-☁️ **Google Drive** - Automatic URL conversion for Google Drive links
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Nintendo%203DS-red.svg)](https://www.nintendo.com/3ds/)
+[![Version](https://img.shields.io/badge/Version-2.0.2-green.svg)](CHANGELOG.md)
+
+</div>
 
 ---
 
-## Supported Formats
-| Format | Extension | Compression |
-|--------|-----------|-------------|
-| **ZIP** | `.zip` | DEFLATE/STORE |
-| **TAR** | `.tar` | None |
-| **TAR.GZ** | `.tar.gz`, `.tgz` | GZIP |
-| **TAR.BZ2** | `.tar.bz2`, `.tbz2` | BZIP2 |
-| **TAR.XZ** | `.tar.xz`, `.txz` | LZMA2 |
-| **TAR.ZSTD** | `.tar.zst` | Zstandard |
-| **7-Zip** | `.7z` | LZMA |
-| **RAR** | `.rar` | RAR (read-only) |
-| **GZIP** | `.gz` | DEFLATE |
-| **BZIP2** | `.bz2` | Burrows-Wheeler |
-| **XZ** | `.xz` | LZMA2 |
-| **ZSTD** | `.zst` | Zstandard |
+## ✨ Features
 
-> **Note**: LZ4 format is not supported (library unavailable on 3DS)
+| Feature | Description |
+|---------|-------------|
+| 📦 **Multi-format Support** | Extract ZIP, TAR, 7Z, RAR, GZIP, BZIP2, XZ and more |
+| 📥 **Direct Download** | Download files from HTTP/HTTPS directly on your 3DS |
+| 🔄 **Auto-retry** | Automatically retry failed downloads |
+| 📂 **File Browser** | Choose where to extract files with built-in browser |
+| 🎨 **Console Interface** | Stable text-based interface optimized for 3DS |
+| ⚡ **Efficient** | Works on Old 3DS, blazing fast on New 3DS |
+| ☁️ **Google Drive** | Automatic URL conversion for Google Drive links |
+| 📋 **Queue Management** | Process multiple files in sequence |
+| ✨ **Auto-Config** | Creates example config file on first run |
 
 ---
 
-## Installation
+## 📦 Supported Formats
 
-### Requirements
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Extension</th>
+<th>Compression</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>📁 <strong>ZIP</strong></td><td><code>.zip</code></td><td>DEFLATE/STORE</td><td>✅ Full</td></tr>
+<tr><td>📦 <strong>TAR</strong></td><td><code>.tar</code></td><td>None</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>TAR.GZ</strong></td><td><code>.tar.gz</code>, <code>.tgz</code></td><td>GZIP</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>TAR.BZ2</strong></td><td><code>.tar.bz2</code>, <code>.tbz2</code></td><td>BZIP2</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>TAR.XZ</strong></td><td><code>.tar.xz</code>, <code>.txz</code></td><td>LZMA2</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>TAR.ZSTD</strong></td><td><code>.tar.zst</code></td><td>Zstandard</td><td>✅ Full</td></tr>
+<tr><td>7️⃣ <strong>7-Zip</strong></td><td><code>.7z</code></td><td>LZMA</td><td>✅ Full</td></tr>
+<tr><td>📚 <strong>RAR</strong></td><td><code>.rar</code></td><td>RAR</td><td>📖 Read-only</td></tr>
+<tr><td>🗜️ <strong>GZIP</strong></td><td><code>.gz</code></td><td>DEFLATE</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>BZIP2</strong></td><td><code>.bz2</code></td><td>Burrows-Wheeler</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>XZ</strong></td><td><code>.xz</code></td><td>LZMA2</td><td>✅ Full</td></tr>
+<tr><td>🗜️ <strong>ZSTD</strong></td><td><code>.zst</code></td><td>Zstandard</td><td>✅ Full</td></tr>
+</tbody>
+</table>
 
-- Nintendo 3DS / 2DS / New 3DS with **Homebrew Launcher**
-- **WiFi** connection
-- **SD card** with free space
-
-### Steps
-
-1. **Download** the latest `3ds-zip-extractor.3dsx` from [Releases](https://github.com/Marcogn/3ds-zip-extractor/releases)
-
-2. **Copy** the file to the `/3ds/` folder on your SD card
-
-3. **Create** the directory and configuration file:
-   ```
-   SD:/3ds/zip-extractor/config.txt
-   ```
-
-4. **Configure** the `config.txt` file (see example below)
-
-5. **Launch** the app from Homebrew Launcher
+> ⚠️ **Note**: LZ4 format is not supported (library unavailable on 3DS platform)
 
 ---
 
-## Usage
+## 📥 Installation
+
+### 📋 Requirements
+
+- 🎮 Nintendo 3DS / 2DS / New 3DS with **Homebrew Launcher**
+- 📡 **WiFi** connection
+- 💾 **SD card** with free space
+
+### 🚀 Quick Start
+
+1️⃣ **Download** the latest `3ds-zip-extractor.3dsx` from [Releases](https://github.com/Marcogn/3ds-zip-extractor/releases)
+
+2️⃣ **Copy** the file to the `/3ds/` folder on your SD card:
+```
+SD:/
+└── 3ds/
+    └── 3ds-zip-extractor.3dsx
+```
+
+3️⃣ **Launch** the app from Homebrew Launcher 🎉
+
+4️⃣ **First Run**: The app will automatically create a config file at:
+```
+SD:/3ds/zip-extractor/config.txt
+```
+
+5️⃣ **Edit** the `config.txt` file and add your download URLs
+
+6️⃣ **Restart** the app to begin downloading!
+
+> 💡 **Tip**: On first run, the app creates an example config with instructions. Just add your URLs!
+
+> ✨ **New**: No need to manually create the config file - the app does it for you!
+
+---
+
+## 🎮 Usage
+
+### First Time Setup
+
+**The app automatically creates a config file on first run!**
+
+Simply:
+1. Launch the app (it will detect no config exists)
+2. App creates `/3ds/zip-extractor/config.txt` with examples
+3. Exit the app (press START)
+4. Edit `config.txt` and add your URLs
+5. Restart the app and press A to begin!
 
 ### Basic Configuration
 
-Create `/3ds/zip-extractor/config.txt` on your SD card:
+Edit `/3ds/zip-extractor/config.txt` on your SD card:
 ```ini
 # Extract directory (must end with /)
 extract_path=sdmc:/extracted/
@@ -108,44 +154,79 @@ https://example.com/archive.7z
 https://example.com/data.tar.xz
 ```
 
-### Controls
+### 🎮 Controls
 
-| Button | Action |
-|--------|--------|
-| **A** | Start downloads/extraction |
-| **B** | Cancel current operation |
-| **X** | View download queue |
-| **SELECT** | Open file browser |
-| **START** | Exit application |
-| **L/R** | Navigate pages (queue view) |
-
----
-
-## Compatibility
-
-### Hardware
-| Console | RAM | CPU | Performance |
-|---------|-----|-----|-------------|
-| 3DS Old | 64MB | 268MHz | ✅ Works |
-| 3DS XL | 64MB | 268MHz | ✅ Works |
-| 2DS | 64MB | 268MHz | ✅ Works |
-| New 3DS | 128MB | 804MHz | ⚡ Fast |
-| New 3DS XL | 128MB | 804MHz | ⚡ Fast |
-| New 2DS XL | 128MB | 804MHz | ⚡ Fast |
-
-> **Tip**: For large archives (>50MB), New 3DS is recommended for better performance
-
-### Performance Estimates
-| Operation | 3DS Old | New 3DS |
-|-----------|---------|---------|
-| Download 10MB | ~30-60s | ~30-60s |
-| Extract ZIP 10MB | ~10-20s | ~3-7s |
-| Extract TAR.GZ 10MB | ~15-30s | ~5-10s |
-| Extract 7Z 10MB | ~20-40s | ~7-15s |
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Action</th>
+<th>Context</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><kbd>A</kbd></td><td>Start downloads/extraction</td><td>Main menu</td></tr>
+<tr><td><kbd>B</kbd></td><td>Cancel current operation</td><td>During download</td></tr>
+<tr><td><kbd>X</kbd></td><td>View download queue</td><td>Main menu</td></tr>
+<tr><td><kbd>Y</kbd></td><td>Skip failed downloads</td><td>Queue view</td></tr>
+<tr><td><kbd>SELECT</kbd></td><td>Open file browser</td><td>Main menu</td></tr>
+<tr><td><kbd>START</kbd></td><td>Exit application</td><td>Anytime</td></tr>
+<tr><td><kbd>L</kbd> / <kbd>R</kbd></td><td>Navigate pages</td><td>Queue view</td></tr>
+<tr><td><kbd>D-Pad</kbd></td><td>Navigate files</td><td>File browser</td></tr>
+</tbody>
+</table>
 
 ---
 
-## Building from Source
+## 🏆 Compatibility
+
+### 💻 Hardware
+
+<table>
+<thead>
+<tr>
+<th>Console</th>
+<th>RAM</th>
+<th>CPU</th>
+<th>Performance</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>3DS</td><td>64MB</td><td>268MHz</td><td>🐢 Basic</td><td>✅ Works</td></tr>
+<tr><td>3DS XL</td><td>64MB</td><td>268MHz</td><td>🐢 Basic</td><td>✅ Works</td></tr>
+<tr><td>2DS</td><td>64MB</td><td>268MHz</td><td>🐢 Basic</td><td>✅ Works</td></tr>
+<tr><td><strong>New 3DS</strong></td><td>128MB</td><td>804MHz</td><td>⚡ Fast</td><td>✅ Recommended</td></tr>
+<tr><td><strong>New 3DS XL</strong></td><td>128MB</td><td>804MHz</td><td>⚡ Fast</td><td>✅ Recommended</td></tr>
+<tr><td><strong>New 2DS XL</strong></td><td>128MB</td><td>804MHz</td><td>⚡ Fast</td><td>✅ Recommended</td></tr>
+</tbody>
+</table>
+
+> 💡 **Tip**: For large archives (>50MB), New 3DS/XL is **strongly recommended** for optimal performance
+
+### ⏱️ Performance Estimates
+
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>3DS Old</th>
+<th>New 3DS</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>📥 Download 10MB</td><td>~30-60s</td><td>~30-60s</td></tr>
+<tr><td>📦 Extract ZIP 10MB</td><td>~10-20s</td><td>~3-7s ⚡</td></tr>
+<tr><td>🗜️ Extract TAR.GZ 10MB</td><td>~15-30s</td><td>~5-10s ⚡</td></tr>
+<tr><td>7️⃣ Extract 7Z 10MB</td><td>~20-40s</td><td>~7-15s ⚡</td></tr>
+</tbody>
+</table>
+
+> ℹ️ **Note**: Times vary based on compression ratio and file contents
+
+---
+
+## 🛠️ Building from Source
 
 ### Prerequisites
 ```bash
@@ -166,49 +247,92 @@ make
 
 ---
 
-## Documentation
+## 📚 Documentation
 
-📚 **Complete Guides**:
-- [User Guide](docs/USER_GUIDE.md) - Detailed usage instructions
-- [Technical Documentation](docs/TECHNICAL.md) - Architecture and API
-- [Developer Guide](docs/DEVELOPMENT.md) - Contributing notes
+**Essential Documentation**:
+- [User Guide](docs/USER_GUIDE.md) - Complete usage instructions and troubleshooting
+- [Technical Documentation](docs/TECHNICAL.md) - Architecture, API, and format support details
+- [Developer Guide](docs/DEVELOPMENT.md) - Build instructions and contribution guidelines
+- [CHANGELOG.md](CHANGELOG.md) - Version history and migration guide
 
-📖 **Other**:
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [SECURITY.md](SECURITY.md) - Security policy
-- [LICENSE](LICENSE) - MIT License
-
----
-
-## Troubleshooting
-
-### Download fails
-- ✅ Check your 3DS WiFi connection
-- ✅ Test the URL in a browser first
-- ✅ Enable `auto_retry=true` in config
-
-### Extraction fails
-
-- ✅ Check available space on SD card
-- ✅ Verify the format is supported
-- ✅ File might be corrupted, try re-downloading
-
-### App crashes/freezes
-
-- ✅ Archive might be too large for Old 3DS
-- ✅ Close other apps to free RAM
-- ✅ Try on New 3DS if available
-
-### Format not supported
-
-- ✅ Check the [format list](#supported-formats)
-- ✅ LZ4 files are not supported (re-compress to .gz or .xz)
-
-For other issues, consult the [User Guide](docs/USER_GUIDE.md) or open an [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues).
+**Project Information**:
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute to the project
+- [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
+- [LICENSE](LICENSE) - MIT License terms
 
 ---
 
-## Google Drive Support
+## 🔧 Troubleshooting
+
+### 📡 Download fails
+
+<details>
+<summary>Click to expand solutions</summary>
+
+- ✅ Check your 3DS WiFi connection is active
+- ✅ Test the URL in a browser first to verify it works
+- ✅ Enable `auto_retry=true` in config.txt
+- ✅ For Google Drive, make sure the file is publicly accessible
+- ✅ Try a different DNS server (8.8.8.8 or 1.1.1.1)
+
+</details>
+
+### 📦 Extraction fails
+
+<details>
+<summary>Click to expand solutions</summary>
+
+- ✅ Check available space on SD card (`df -h` on SD)
+- ✅ Verify the archive format is supported (see [Supported Formats](#-supported-formats))
+- ✅ File might be corrupted - try re-downloading
+- ✅ Password-protected archives are NOT supported
+- ✅ Try extracting to a different path
+
+</details>
+
+### 💥 App crashes/freezes
+
+<details>
+<summary>Click to expand solutions</summary>
+
+- ✅ Archive might be too large for Old 3DS (>200MB compressed)
+- ✅ Close other homebrew apps to free RAM
+- ✅ Try on New 3DS/XL if available
+- ✅ Verify you have the latest devkitPRO libraries
+- ✅ Check if the .3dsx file is not corrupted
+- ✅ Make sure you have enough space on SD card
+
+</details>
+
+### ❓ Icon shows as question mark
+
+<details>
+<summary>Click to expand solutions</summary>
+
+- ✅ **This issue has been fixed in v2.0!**
+- ✅ Re-download the latest .3dsx file
+- ✅ The icon.png file must be 48x48 RGBA format
+- ✅ The SMDH metadata is now properly embedded
+
+</details>
+
+### 🚫 Format not supported
+
+<details>
+<summary>Click to expand solutions</summary>
+
+- ✅ Check the [supported formats list](#-supported-formats)
+- ✅ LZ4 files are NOT supported (re-compress to .gz or .xz)
+- ✅ Encrypted/password-protected archives are NOT supported
+- ✅ Some exotic RAR versions might not work (use RAR5)
+
+</details>
+
+> 📚 For detailed troubleshooting, consult the [User Guide](docs/USER_GUIDE.md) or open an [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues)
+
+---
+
+## ☁️ Google Drive Support
 
 The app automatically converts Google Drive sharing URLs to direct download links:
 
@@ -324,6 +448,19 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ---
 
 ## Changelog
+
+### v2.0.2 (2026-02-02)
+- ✨ **Auto-config creation**: App creates example config on first run
+- 🐛 **Data abort fix**: Fixed stack overflow issues
+- 💪 **Stability**: Heap allocation for large structures
+- 📝 **Better UX**: Clear messages and instructions
+- 🔧 **Icon fix**: Proper 48x48 RGBA icon included
+
+### v2.0.1 (2026-02-02)
+- 🐛 Fixed data abort crashes on real hardware
+- 🔧 GUI disabled for stability (console-only mode)
+- 💾 Heap allocation to prevent stack overflow
+- ✅ Stable on Old 3DS and New 3DS
 
 ### v2.0 (2026-02-02)
 - ✨ Multi-format support (11+ formats)
