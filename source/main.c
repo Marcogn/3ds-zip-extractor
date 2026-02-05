@@ -5,6 +5,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <3ds.h>
+#include <citro2d.h>
+#include <citro3d.h>
 #include <curl/curl.h>
 #include <zlib.h>
 #include "gui.h"
@@ -948,19 +950,24 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
 }
 
 int main(int argc, char** argv) {
-    // Initialize graphics (exactly like fast-uninstall)
+    // Initialize graphics (EXACTLY like fast-uninstall - direct calls, no gui_init)
     gfxInitDefault();
+    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    C2D_Prepare();
 
-    // Initialize PTMU for LED notifications
-    ptmuInit();
+    // Create render targets for top and bottom screens
+    g_gui.top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+    g_gui.bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
-    // Initialize GUI with citro2d/citro3d
-    g_use_gui = gui_init(&g_gui);
+    // Create text buffer for dynamic text rendering
+    g_gui.textBuf = C2D_TextBufNew(4096);
 
-    if (!g_use_gui) {
-        // Fallback to console if GUI fails
+    if (!g_gui.top || !g_gui.bottom || !g_gui.textBuf) {
+        // Critical failure - cannot continue without GUI
+        gfxInitDefault();
         consoleInit(GFX_TOP, NULL);
-        printf("GUI initialization failed!\n");
+        printf("CRITICAL: Failed to initialize graphics!\n");
         printf("Press START to exit\n");
         while (aptMainLoop()) {
             hidScanInput();
@@ -969,10 +976,37 @@ int main(int argc, char** argv) {
             gfxSwapBuffers();
             gspWaitForVBlank();
         }
-        ptmuExit();
         gfxExit();
         return 1;
     }
+
+    g_gui.initialized = true;
+    g_use_gui = true;
+
+    // Draw initial screen (like fast-uninstall)
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    C2D_TargetClear(g_gui.top, COLOR_BG);
+    C2D_SceneBegin(g_gui.top);
+
+    C2D_TextBufClear(g_gui.textBuf);
+    C2D_Text text;
+
+    C2D_TextParse(&text, g_gui.textBuf, "Archive Extractor for 3DS");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, 10.0f, 0.5f, 0.5f, 0.5f, COLOR_ACCENT);
+
+    C2D_TextParse(&text, g_gui.textBuf, "Initializing...");
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, 40.0f, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
+
+    C2D_TargetClear(g_gui.bottom, COLOR_BG);
+    C2D_SceneBegin(g_gui.bottom);
+
+    C3D_FrameEnd(0);
+
+    // Initialize PTMU for LED notifications
+    ptmuInit();
 
     // Enable sleep mode support (continue downloads in background)
     enable_sleep_mode();
@@ -1527,10 +1561,13 @@ exit_loop:
     socExit();
     free(socMemory);
     
-    if (g_use_gui) {
-        gui_cleanup(&g_gui);
+    // Cleanup (exactly like fast-uninstall)
+    if (g_gui.textBuf) {
+        C2D_TextBufDelete(g_gui.textBuf);
     }
-    
+    C2D_Fini();
+    C3D_Fini();
+
     // Cleanup PTMU
     ptmuExit();
 
