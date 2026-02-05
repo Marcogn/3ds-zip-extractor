@@ -1,6 +1,8 @@
 # Build directories
-build/
-*.3dsx
+build/*.o
+build/*.d
+build/*.map
+build/*.lst
 *.elf
 *.smdh
 
@@ -25,8 +27,6 @@ final_build.log
 # Dependencies
 lib/
 
-# Debug files
-*.map
 
 # Nested duplicated directories
 _codeql_detected_source_root/

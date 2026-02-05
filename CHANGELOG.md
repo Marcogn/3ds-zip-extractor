@@ -2,108 +2,89 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [2.0.2] - 2026-02-05
 
 ### Added
-- Auto-config file creation on first run
-- Example configuration file with instructions
-- Improved user guidance for initial setup
-- File browser for extraction path selection
-- Queue management with status display
-- Google Drive URL automatic conversion
+- Binary distribution: .3dsx file now included in repository
+- Automatic config file creation on first run with example URLs
+- File browser for selecting custom extraction paths
+- Download queue with status tracking for multiple files
+- Google Drive URL automatic conversion for direct downloads
 
 ### Fixed
-- Data abort crashes on real hardware
-- Stack overflow issues with large structures
-- Icon display (proper 48x48 RGBA format)
-- Memory allocation moved to heap for stability
-- GUI disabled temporarily for maximum stability
+- Critical stability issues on real hardware (data abort errors)
+- Stack overflow with large data structures - moved to heap allocation
+- Application icon now displays correctly (48x48 RGBA format)
+- Memory leaks in download and extraction routines
 
 ### Changed
-- Console-only interface for reliability
-- Improved error messages and user feedback
-- Heap allocation for `DownloadQueue` and `FileBrowser`
-- Enhanced stability on Old 3DS hardware
+- GUI temporarily disabled in favor of stable console interface
+- Large structures (DownloadQueue, FileBrowser) now heap-allocated
+- Improved error messages throughout the application
+- Better user guidance during initial setup
+
+### Removed
+- Obsolete build scripts and icon generation tools
+- Italian and outdated documentation files
 
 ## [2.0.1] - 2026-02-02
 
 ### Fixed
-- Critical data abort crashes on real 3DS hardware
-- Stack overflow with large data structures
-- GPU rendering conflicts (citro3d/citro2d)
+- Data abort crashes on Old 3DS and New 3DS hardware
+- GPU rendering conflicts with citro3d/citro2d libraries
 
 ### Changed
-- GUI temporarily disabled for stability
-- Console-only mode as default
+- Console-only mode as default for stability
+- Heap allocation to prevent stack overflow
 
 ## [2.0.0] - 2026-02-02
 
 ### Added
 - Multi-format archive support (11+ formats)
-- ZIP, TAR, 7Z, RAR (read-only) extraction
-- Compressed TAR variants (GZ, BZ2, XZ, ZSTD)
-- Single compressed files (GZIP, BZIP2, XZ, ZSTD)
-- Automatic format detection via magic bytes
+- Archive types: ZIP, TAR, 7Z, RAR (read-only)
+- Compressed TAR: TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD
+- Single compressed files: GZIP, BZIP2, XZ, ZSTD
+- Automatic format detection via file signatures (magic bytes)
 - libarchive integration for robust extraction
-- Download resume support
-- Auto-retry for failed downloads
-- Progress tracking for downloads and extraction
-- Queue system for multiple files
+- Download resume capability for interrupted transfers
+- Automatic retry for failed downloads (configurable)
+- Progress tracking for both download and extraction
+- Multi-file queue system
 
 ### Changed
 - Complete rewrite of extraction engine
-- Improved memory management
-- Enhanced error handling
-- Performance optimizations for New 3DS
-
-### Removed
-- Basic ZIP-only extraction (replaced with multi-format)
+- Improved memory management and error handling
+- Performance optimizations for New 3DS hardware
 
 ## [1.0.0] - 2026-01-15
 
 ### Added
-- Initial release
-- Basic ZIP file extraction
-- HTTP/HTTPS download support
-- Simple console GUI
-- Configuration file support
-- Progress display
+- Initial release with basic ZIP extraction
+- HTTP/HTTPS download support via libcurl
+- Simple console interface
+- Configuration file support (config.txt)
+- Progress display during operations
 
 ---
 
-## Version Compatibility
+## Notes
 
-- **v2.0.x**: Requires devkitPRO with libarchive, libcurl, compression libraries
-- **v1.0.x**: Basic dependencies only (zlib, libcurl)
+### Supported Formats
+The application can extract archives in these formats:
+- ZIP (deflate, store)
+- TAR (uncompressed)
+- TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD
+- 7-Zip (.7z)
+- RAR (read-only, no RAR5)
+- Single compressed files (GZIP, BZIP2, XZ, ZSTD)
 
-## Migration Guide
-
-### From v1.0 to v2.0
-
-No configuration changes required. The `config.txt` format remains the same.
-
-**Benefits of upgrading:**
-- Support for 10+ additional archive formats
-- Automatic format detection
-- Improved stability and error handling
-- Better performance on New 3DS
-- Auto-config creation feature
-
-**Known Issues:**
-- LZ4 format not supported (library unavailable on 3DS)
+### Known Limitations
+- LZ4 format not supported (library unavailable for 3DS)
 - Password-protected archives not supported
+- Very large archives (>200MB) may have issues on Old 3DS
 - GPU rendering disabled in v2.0.2 for stability
 
----
+### Migration from v1.0
+No configuration changes required. The config.txt format is unchanged.
+Simply replace the .3dsx file and restart.
 
-## Support
-
-For issues, feature requests, or contributions, visit:
-https://github.com/Marcogn/3ds-zip-extractor
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
