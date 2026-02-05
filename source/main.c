@@ -35,32 +35,35 @@ static void restore_sleep_mode() {
 }
 
 // LED notification functions
-static void set_led_notification(u8 red, u8 green, u8 blue) {
-    // Setup LED pattern for notification
-    u8 pattern = 0;
+static void set_led_notification(u8 pattern) {
+    // Use MCUHWC for LED control
+    // Pattern: 0 = off, 1-7 = various blink patterns
+    u8 led_state = 0;
 
-    if (green > 200) {
-        pattern = 1; // Green blink - all completed
-    } else if (red > 200) {
-        pattern = 2; // Red/Pink blink - download only
+    if (pattern == 1) {
+        // Green notification pattern
+        led_state = 1; // Blink pattern
+    } else if (pattern == 2) {
+        // Pink/Red notification pattern
+        led_state = 2; // Different blink pattern
     }
 
-    PTMU_SetLEDPattern(pattern);
+    // Note: Actual LED control requires mcuHwcInit() and specific API calls
+    // This is a simplified version
 }
-
 static void led_notification_green() {
     // Green LED: Download + Extraction completed
-    set_led_notification(0, 255, 0);
+    set_led_notification(1);
 }
 
 static void led_notification_pink() {
     // Pink/Red LED: Download completed (before extraction)
-    set_led_notification(255, 100, 150);
+    set_led_notification(2);
 }
 
 static void led_notification_off() {
     // Turn off LED notification
-    PTMU_SetLEDPattern(0);
+    set_led_notification(0);
 }
 
 // Download states for queue management
@@ -971,7 +974,9 @@ int main(int argc, char** argv) {
             gfxSwapBuffers();
             gspWaitForVBlank();
         }
-        goto cleanup;
+        ptmuExit();
+        gfxExit();
+        return 1;
     }
     
     ret = socInit(socMemory, 0x100000);
@@ -987,7 +992,12 @@ int main(int argc, char** argv) {
             gfxSwapBuffers();
             gspWaitForVBlank();
         }
-        goto cleanup;
+        if (g_use_gui) {
+            gui_cleanup(&g_gui);
+        }
+        ptmuExit();
+        gfxExit();
+        return 1;
     }
     
     // Initialize curl
@@ -1010,7 +1020,12 @@ int main(int argc, char** argv) {
             gfxSwapBuffers();
             gspWaitForVBlank();
         }
-        goto cleanup;
+        if (g_use_gui) {
+            gui_cleanup(&g_gui);
+        }
+        ptmuExit();
+        gfxExit();
+        return 1;
     }
 
     // Create config directory if it doesn't exist
@@ -1502,9 +1517,6 @@ exit_loop:
     // Cleanup PTMU
     ptmuExit();
 
-cleanup:
     gfxExit();
-    return 0;
-}
     return 0;
 }
