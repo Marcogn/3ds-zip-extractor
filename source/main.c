@@ -990,41 +990,88 @@ int main(int argc, char** argv) {
     // Try to read configuration file
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
 
-    // If config doesn't exist, create an example one
+    // If config doesn't exist, create an example one and EXIT
     if (url_count < 0) {
-        gui_draw_status("Archive Extractor for 3DS", "Creating example config...");
+        gui_draw_status("Archive Extractor for 3DS", "Config not found! Creating...");
+
+        // Small delay so user sees the message
+        for (int i = 0; i < 30; i++) gspWaitForVBlank();
 
         if (create_example_config(CONFIG_FILE_PATH)) {
-            gui_draw_status("Archive Extractor for 3DS", "Config created! Edit and restart.");
-
-            // Wait for user to press START
+            // Config created successfully - show message and force exit
             while (aptMainLoop()) {
                 hidScanInput();
                 if (hidKeysDown() & KEY_START) break;
-                // Keep rendering the same screen
-                gui_draw_status("Archive Extractor for 3DS",
-                    "Config created at sdmc:/3ds/zip-extractor/config.txt - Press START");
+
+                // Show clear instructions
+                C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+                C2D_TargetClear(g_top, COLOR_BG);
+                C2D_SceneBegin(g_top);
+                C2D_TextBufClear(g_textBuf);
+                C2D_Text text;
+                float y = 10.0f;
+
+                C2D_TextParse(&text, g_textBuf, "Config File Created!");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.6f, 0.6f, COLOR_SUCCESS);
+                y += 30;
+
+                C2D_DrawRectSolid(10, y, 0.5f, 380, 2, COLOR_ACCENT);
+                y += 15;
+
+                C2D_TextParse(&text, g_textBuf, "Location:");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
+                y += 16;
+
+                C2D_TextParse(&text, g_textBuf, "  sdmc:/3ds/zip-extractor/config.txt");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 25;
+
+                C2D_TextParse(&text, g_textBuf, "What to do:");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
+                y += 16;
+
+                C2D_TextParse(&text, g_textBuf, "  1. Close this app (START)");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 14;
+
+                C2D_TextParse(&text, g_textBuf, "  2. Edit config.txt on your SD card");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 14;
+
+                C2D_TextParse(&text, g_textBuf, "  3. Add your download URLs");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 14;
+
+                C2D_TextParse(&text, g_textBuf, "  4. Restart the app");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
+                y += 30;
+
+                C2D_TextParse(&text, g_textBuf, "Press START to exit");
+                C2D_TextOptimize(&text);
+                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.45f, 0.45f, COLOR_PROGRESS);
+
+                C2D_TargetClear(g_bottom, COLOR_BG);
+                C2D_SceneBegin(g_bottom);
+                C3D_FrameEnd(0);
             }
-
-            // Set default values for queue
-            strncpy(queue->extract_path, DEFAULT_EXTRACT_PATH, MAX_PATH_LENGTH - 1);
-            queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
-            queue->auto_retry = true;
-            queue->max_retries = 3;
-            queue->count = 0;
-            url_count = 0;
         } else {
-            gui_draw_error("Error", "Cannot create config! SD read-only?");
-            url_count = -1;
+            // Cannot create config - show error
+            while (aptMainLoop()) {
+                hidScanInput();
+                if (hidKeysDown() & KEY_START) break;
+                gui_draw_error("Cannot Create Config", "SD card read-only? Press START");
+            }
         }
 
-        // Wait for user to press START then exit
-        while (aptMainLoop()) {
-            hidScanInput();
-            if (hidKeysDown() & KEY_START) break;
-        }
-
-        // Exit after showing message
+        // Force exit - user must edit config and restart
         goto exit_loop;
     }
 
