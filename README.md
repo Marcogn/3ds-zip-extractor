@@ -116,36 +116,27 @@ https://drive.google.com/file/d/FILE_ID/view
 
 ## Building from Source
 
-## 🛠️ Building from Source
-
 ### Prerequisites
 ```bash
-# Install devkitPRO and dependencies
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-citro3d 3ds-citro2d \
-                   3ds-libarchive 3ds-zlib 3ds-bzip2 3ds-xz 3ds-zstd
+# Install devkitPRO and libraries
+sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive \
+                   3ds-zlib 3ds-bzip2 3ds-xz 3ds-zstd
 ```
 
 ### Build
-
 ```bash
 git clone https://github.com/Marcogn/3ds-zip-extractor.git
 cd 3ds-zip-extractor
 make
 ```
 
-**Output**: `3ds-zip-extractor.3dsx`
+Output: `3ds-zip-extractor.3dsx`
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-**Essential Documentation**:
-- [User Guide](docs/USER_GUIDE.md) - Complete usage instructions and troubleshooting
-- [Technical Documentation](docs/TECHNICAL.md) - Architecture, API, and format support details
-- [Developer Guide](docs/DEVELOPMENT.md) - Build instructions and contribution guidelines
-- [CHANGELOG.md](CHANGELOG.md) - Version history and migration guide
-
-**Project Information**:
+- [CHANGELOG.md](CHANGELOG.md) - Version history and release notes
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute to the project
 - [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
 - [LICENSE](LICENSE) - MIT License terms
@@ -171,66 +162,21 @@ make
 - Close other homebrew apps to free RAM
 - Ensure you have enough SD card space
 
-For detailed troubleshooting, see [User Guide](docs/USER_GUIDE.md) or open an [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues).
+For more help, open an [Issue](https://github.com/Marcogn/3ds-zip-extractor/issues).
 
 ---
 
-## ☁️ Google Drive Support
+## Google Drive Support
 
-The app automatically converts Google Drive sharing URLs to direct download links:
+The app automatically converts Google Drive sharing URLs to direct download links.
 
-**Supported URL formats**:
+Supported formats:
 ```
 https://drive.google.com/file/d/FILE_ID/view
 https://drive.google.com/open?id=FILE_ID
-https://drive.google.com/uc?id=FILE_ID
 ```
 
-**Features**:
-- ✅ Automatic FILE_ID extraction
-- ✅ Virus scan bypass for files >100MB
-- ✅ Direct download link generation
-
-**Example**:
-```ini
-# Simply paste the Google Drive share link
-https://drive.google.com/file/d/1ABC123xyz/view
-
-# The app converts it automatically to:
-https://drive.google.com/uc?export=download&id=1ABC123xyz&confirm=t
-```
-
----
-
-## Technologies
-
-Built with:
-- **libarchive** - Multi-format archive extraction
-- **libcurl** - HTTP/HTTPS downloads
-- **mbedtls** - SSL/TLS support
-- **zlib, libbz2, liblzma, libzstd** - Compression algorithms
-- **citro2d/citro3d** - GPU rendering
-- **libctru** - Nintendo 3DS system library
-
----
-
-## Building from Source
-
-### Prerequisites
-```bash
-# Install devkitPRO and libraries
-sudo dkp-pacman -S 3ds-dev 3ds-curl 3ds-libarchive \
-                   3ds-zlib 3ds-bzip2 3ds-xz 3ds-zstd
-```
-
-### Build
-```bash
-git clone https://github.com/Marcogn/3ds-zip-extractor.git
-cd 3ds-zip-extractor
-make
-```
-
-Output: `3ds-zip-extractor.3dsx`
+Example: Simply paste `https://drive.google.com/file/d/1ABC123xyz/view` in config.txt
 
 ---
 
@@ -281,6 +227,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 - libarchive team - Multi-format archive library
 - 3DS homebrew community
 
-**Author**: Marco Genovese (Marcogn)  
 **Repository**: [github.com/Marcogn/3ds-zip-extractor](https://github.com/Marcogn/3ds-zip-extractor)
 
