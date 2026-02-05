@@ -972,9 +972,7 @@ int main(int argc, char** argv) {
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_START) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gspWaitForVBlank();
+            gui_draw_error("Memory Error", "Press START to exit");
         }
         if (g_use_gui) {
             gui_cleanup(&g_gui);
@@ -1034,6 +1032,10 @@ int main(int argc, char** argv) {
         extract_path = queue->extract_path;
     }
     
+    // Show main menu immediately after loading config
+    gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
+                       queue->auto_retry, queue->max_retries);
+
     bool started = false;
     bool cancelled = false;
     bool show_queue = false;

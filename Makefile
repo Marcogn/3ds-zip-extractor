@@ -40,9 +40,9 @@ GRAPHICS	:=	gfx
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(BUILD)
 
-APP_TITLE	:=	3DS Zip Extractor
-APP_DESCRIPTION	:=	Download and extract archives
-APP_AUTHOR	:=	Marcogn
+APP_TITLE	    := 3DS Zip Extractor
+APP_DESCRIPTION	:= Download and extract archives
+APP_AUTHOR	    := Marcogn
 
 #---------------------------------------------------------------------------------
 # options for code generation
