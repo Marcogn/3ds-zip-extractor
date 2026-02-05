@@ -8,9 +8,9 @@ Download and extract archives directly on your Nintendo 3DS.
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Nintendo%203DS-red.svg)](https://www.nintendo.com/3ds/)
-[![Version](https://img.shields.io/badge/Version-0.1.0--prealpha-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.0-green.svg)](CHANGELOG.md)
 
-> ⚠️ **Pre-alpha software** - Work in progress. Expect bugs and incomplete features.
+> **First stable release** - Download and extract archives on Nintendo 3DS
 
 ---
 

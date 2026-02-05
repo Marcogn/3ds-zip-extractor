@@ -1,10 +1,10 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [1.0] - 2026-02-05
 
-## [0.1.0-prealpha] - 2026-02-05
+### First Stable Release
 
-### Added
+#### Features
 - Graphical interface with citro2d/citro3d (dark blue theme)
 - Multi-format archive support via libarchive
 - HTTP/HTTPS downloads via libcurl
@@ -14,21 +14,18 @@ All notable changes to this project will be documented in this file.
 - LED notifications (green=complete, pink=download done)
 - File browser for extraction path
 - Download queue system
+- Auto-retry for failed downloads
 
-### Supported Formats
+#### Supported Formats
 - ZIP, TAR, 7Z, RAR (read-only)
 - TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD
 - GZIP, BZIP2, XZ, ZSTD
 
-### Known Issues
-- Pre-alpha: expect bugs
+#### Known Limitations
 - Large archives (>200MB) may cause issues on Old 3DS
 - Password-protected archives not supported
-- LZ4 not supported
+- LZ4 format not supported
 
 ---
 
-## Notes
-
-This is a pre-alpha release. The application is still under development.
 Report bugs at: https://github.com/Marcogn/3ds-zip-extractor/issues

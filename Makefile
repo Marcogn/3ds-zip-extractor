@@ -163,15 +163,19 @@ endif
 #---------------------------------------------------------------------------------
 all: $(BUILD)
 
-$(BUILD):
+$(BUILD): $(TARGET).smdh
 	@[ -d $@ ] || mkdir -p $@
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+# Generate SMDH if it doesn't exist
+$(TARGET).smdh:
+	@echo "Generating SMDH..."
+	@smdhtool --create "$(APP_TITLE)" "$(APP_DESCRIPTION)" "$(APP_AUTHOR)" $(TOPDIR)/$(ICON) $@
 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).3dsx $(TARGET).elf
-# NOTE: $(OUTPUT).smdh NOT removed - it's committed to the repository and required for build
 
 
 #---------------------------------------------------------------------------------
