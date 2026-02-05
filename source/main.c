@@ -68,6 +68,34 @@ static void led_notification_off() {
     set_led_notification(0);
 }
 
+// Helper function to show status messages without flickering
+static void show_status_message(const char* title, const char* message) {
+    if (!g_use_gui) return;
+
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    C2D_TargetClear(g_gui.top, COLOR_BG);
+    C2D_SceneBegin(g_gui.top);
+
+    C2D_TextBufClear(g_gui.textBuf);
+    C2D_Text text;
+
+    // Title
+    C2D_TextParse(&text, g_gui.textBuf, title);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, 10.0f, 0.5f, 0.5f, 0.5f, COLOR_ACCENT);
+
+    // Message
+    C2D_TextParse(&text, g_gui.textBuf, message);
+    C2D_TextOptimize(&text);
+    C2D_DrawText(&text, C2D_WithColor, 10.0f, 40.0f, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
+
+    C2D_TargetClear(g_gui.bottom, COLOR_BG);
+    C2D_SceneBegin(g_gui.bottom);
+
+    C3D_FrameEnd(0);
+}
+
 // Download states for queue management
 typedef enum {
     DOWNLOAD_PENDING,
@@ -983,27 +1011,8 @@ int main(int argc, char** argv) {
     g_gui.initialized = true;
     g_use_gui = true;
 
-    // Draw initial screen (like fast-uninstall)
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-
-    C2D_TargetClear(g_gui.top, COLOR_BG);
-    C2D_SceneBegin(g_gui.top);
-
-    C2D_TextBufClear(g_gui.textBuf);
-    C2D_Text text;
-
-    C2D_TextParse(&text, g_gui.textBuf, "Archive Extractor for 3DS");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, 10.0f, 0.5f, 0.5f, 0.5f, COLOR_ACCENT);
-
-    C2D_TextParse(&text, g_gui.textBuf, "Initializing...");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, 40.0f, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
-
-    C2D_TargetClear(g_gui.bottom, COLOR_BG);
-    C2D_SceneBegin(g_gui.bottom);
-
-    C3D_FrameEnd(0);
+    // Show initial screen
+    show_status_message("Archive Extractor for 3DS", "Initializing...");
 
     // Initialize PTMU for LED notifications
     ptmuInit();
@@ -1011,6 +1020,8 @@ int main(int argc, char** argv) {
     // Enable sleep mode support (continue downloads in background)
     enable_sleep_mode();
 
+    // Show network initialization status
+    show_status_message("Archive Extractor for 3DS", "Initializing network...");
 
     // Initialize networking
     Result ret = 0;
@@ -1032,29 +1043,31 @@ int main(int argc, char** argv) {
     
     ret = socInit(socMemory, 0x100000);
     if (ret != 0) {
-        printf("\nsocInit failed: 0x%08lX\n", ret);
-        printf("Network initialization failed!\n");
-        printf("Press START to exit\n");
-        free(socMemory);
-        while (aptMainLoop()) {
-            hidScanInput();
-            if (hidKeysDown() & KEY_START) break;
-            gfxFlushBuffers();
-            gfxSwapBuffers();
+        show_status_message("Archive Extractor for 3DS", "Network initialization FAILED!");
+        // Wait a bit so user can see the error
+        for(int i = 0; i < 60; i++) {
             gspWaitForVBlank();
         }
-        if (g_use_gui) {
-            gui_cleanup(&g_gui);
-        }
+
+        free(socMemory);
+        C2D_TextBufDelete(g_gui.textBuf);
+        C2D_Fini();
+        C3D_Fini();
         ptmuExit();
         gfxExit();
         return 1;
     }
     
+    // Show curl initialization
+    show_status_message("Archive Extractor for 3DS", "Initializing download system...");
+
     // Initialize curl
     curl_global_init(CURL_GLOBAL_ALL);
     
     const char* extract_path = DEFAULT_EXTRACT_PATH;
+
+    // Show memory allocation
+    show_status_message("Archive Extractor for 3DS", "Allocating memory...");
 
     // Allocate queue on heap to avoid stack overflow (structure is very large)
     DownloadQueue* queue = (DownloadQueue*)calloc(1, sizeof(DownloadQueue));
@@ -1084,6 +1097,9 @@ int main(int argc, char** argv) {
     ret = mkdir("sdmc:/3ds/zip-extractor", 0777);
     // Ignore errors - directories may already exist
     
+    // Show config loading
+    show_status_message("Archive Extractor for 3DS", "Loading configuration...");
+
     // Try to read configuration file
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
 

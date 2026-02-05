@@ -4,7 +4,7 @@ build/*.d
 build/*.map
 build/*.lst
 *.elf
-*.smdh
+# *.smdh - REMOVED: We need to commit the SMDH file for the build to work
 
 # Editor files
 *.swp
