@@ -118,11 +118,11 @@ void display_file_browser(FileBrowser* browser, int scroll_offset) {
     }
 
     y = 200.0f;
-    C2D_TextParse(&text, g_textBuf, "D-Pad: Navigate  A: Enter  Y: Select");
+    C2D_TextParse(&text, g_textBuf, "A: Enter/Extract  Y: Use as path");
     C2D_TextOptimize(&text);
     C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
-    y += 12.0f;
-    C2D_TextParse(&text, g_textBuf, "B: Cancel  X: New Folder");
+    y += 12;
+    C2D_TextParse(&text, g_textBuf, "B: Back  X: Refresh");
     C2D_TextOptimize(&text);
     C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_TEXT);
 

@@ -8,9 +8,10 @@ Download and extract archives directly on your Nintendo 3DS.
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Nintendo%203DS-red.svg)](https://www.nintendo.com/3ds/)
-[![Version](https://img.shields.io/badge/Version-1.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.1.0-green.svg)](CHANGELOG.md)
 
-> **First stable release** - Download and extract archives on Nintendo 3DS
+> **Phase 3 UX release** — interactive bottom queue, in-app URL entry,
+> local archive extraction, rolling speed meter & ETA.
 
 ---
 
@@ -68,16 +69,32 @@ The format is **backwards-compatible with v1.0** config files.
 
 ## Controls
 
+The bottom screen is a persistent **interactive queue** — touch a row to
+toggle it between *pending* and *skipped* (no-op while it's downloading)
+and use the on-screen action bar to fire the same actions as the
+physical buttons.
+
 | Button | Action |
 |--------|--------|
-| A | Start / Confirm |
-| B | Cancel |
-| X | View queue |
-| Y | (in queue view) Mark failed items as skipped |
-| L / R | (in queue view) Page through URLs |
-| SELECT | File browser |
+| A | Start downloads / Confirm selection |
+| B | Cancel current operation |
+| X | View queue (paginated detail screen) |
+| Y | **Add URL via on-screen keyboard** (in main menu); skip failed (in queue view) |
+| L / R | Page through URLs in the queue view |
+| SELECT | Open the SD card file browser |
 | START | Exit |
-| D-Pad | Navigate |
+| D-Pad / Circle Pad | Navigate menus and scroll the bottom queue |
+| Touch (queue row) | Toggle pending ↔ skipped |
+| Touch (action bar) | Same as the corresponding physical button |
+| R + A (after Y) | Persist the freshly-added URL into `config.txt` |
+
+In the file browser, pressing **A** on a supported archive prompts to
+extract it directly — no download required.
+
+During downloads the top screen shows the rolling throughput
+(`MB/s`) and a live ETA (`mm:ss`, capped at `99:59`); during extraction
+a percentage progress bar is drawn whenever the entry count can be
+pre-determined, or a spinner otherwise.
 
 ---
 

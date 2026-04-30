@@ -11,6 +11,7 @@
 
 #include "gdrive.h"
 #include "gui.h"
+#include "speed_meter.h"
 
 #define TEMP_DIR "sdmc:/3ds/zip-extractor/tmp"
 
@@ -21,6 +22,12 @@ typedef struct {
     bool resume;
     // For server-200-when-resuming detection
     bool first_chunk;
+    // Per-transfer rolling speed/ETA state.
+    speed_meter_t meter;
+    u64 last_render_ms;
+    int current;
+    int total_items;
+    const char* display_url;
 } DownloadData;
 
 // curl write callback. If we asked to resume but the server replied with
@@ -46,6 +53,28 @@ static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow
     DownloadData* data = (DownloadData*)clientp;
     if (dltotal > 0) {
         data->total = dltotal;
+    }
+
+    // Sample the rolling-window speed meter.
+    u64 now = osGetTime();
+    speed_meter_sample(&data->meter, data->downloaded, now);
+
+    // Re-render at most ~10 fps to avoid flooding the GPU.
+    if (now - data->last_render_ms > 100) {
+        data->last_render_ms = now;
+        double bps = speed_meter_bps(&data->meter, now);
+        int eta = -1;
+        if (bps > 0.0 && data->total > data->downloaded) {
+            double remaining = (double)(data->total - data->downloaded) / bps;
+            if (remaining > 0.0 && remaining < (double)(99 * 60 + 60)) {
+                eta = (int)remaining;
+            } else if (remaining >= (double)(99 * 60 + 60)) {
+                eta = 99 * 60 + 59;
+            }
+        }
+        gui_draw_download(data->current, data->total_items,
+                          data->display_url ? data->display_url : "",
+                          data->downloaded, data->total, bps, eta);
     }
 
     hidScanInput();
@@ -94,6 +123,10 @@ Result download_file(const AppConfig* cfg,
     DownloadData data = {0};
     *cancelled = false;
     data.first_chunk = true;
+    speed_meter_init(&data.meter);
+    data.last_render_ms = 0;
+    data.current = current;
+    data.total_items = total;
 
     long buffer_size = (long)(cfg ? cfg->download_buffer_kb : 128) * 1024L;
     long connect_timeout = (long)(cfg ? cfg->connect_timeout_s : 30);
@@ -124,6 +157,7 @@ Result download_file(const AppConfig* cfg,
 
     char converted_url[512];
     convert_gdrive_url(url, converted_url, sizeof(converted_url));
+    data.display_url = converted_url;
 
     curl_easy_setopt(curl, CURLOPT_URL, converted_url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -138,13 +172,13 @@ Result download_file(const AppConfig* cfg,
     // store. Documented trade-off (see SECURITY.md).
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "3DS-Zip-Extractor/1.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "3DS-Zip-Extractor/1.1.0");
 
     if (data.resume && data.downloaded > 0) {
         curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)data.downloaded);
     }
 
-    gui_draw_download(current, total, converted_url, data.downloaded, data.total);
+    gui_draw_download(current, total, converted_url, data.downloaded, data.total, 0.0, -1);
     res = curl_easy_perform(curl);
 
     // If we asked to resume but got 200 (full content), restart from scratch.
@@ -167,7 +201,9 @@ Result download_file(const AppConfig* cfg,
     }
 
     if (res == CURLE_OK) {
-        gui_draw_download(current, total, converted_url, data.downloaded, data.total);
+        u64 now = osGetTime();
+        double bps = speed_meter_bps(&data.meter, now);
+        gui_draw_download(current, total, converted_url, data.downloaded, data.total, bps, 0);
     }
 
     curl_easy_cleanup(curl);

@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-30
+
+### Added — Phase 3 UX/GUI
+- **Interactive bottom queue.** The bottom screen is now a persistent
+  scrollable list of every URL with colored status icons (pending,
+  in-progress, completed, failed, skipped). Touch a row to toggle
+  pending ↔ skipped. A virtual action bar at the foot of the screen
+  mirrors the physical buttons (`A B X Y START`).
+- **In-app URL entry.** Pressing `Y` on the menu opens the system
+  software keyboard (`swkbd`) to add a URL on-the-fly. After validation
+  (`url_is_valid_http`), a 3-second banner offers `R + A` to also
+  persist the URL into `config.txt` (purely additive, never rewrites
+  existing lines).
+- **Local archive extraction from the file browser.** Pressing `A` on a
+  supported archive prompts for confirmation and extracts directly into
+  `extract_path` — no download required. Unsupported files show a
+  1.5-second tooltip.
+- **Rolling speed meter and ETA.** Downloads now show a 2-second
+  windowed `MB/s` figure and a live `mm:ss` ETA (capped at `99:59`,
+  `--:--` when unknown). Implemented as a 16-sample ring buffer in the
+  pure `speed_meter` module.
+- **Percentage extraction progress.** The extractor pre-counts archive
+  entries (`archive_count_entries`) so the GUI can render a real
+  percentage bar; falls back to an animated spinner when the count
+  isn't available (e.g. non-seekable streams).
+- **Cooperative timed overlays.** `gui_draw_error_timed`,
+  `gui_tooltip`, and `gui_confirm_persist_url` keep `aptMainLoop()`
+  ticking while a transient message is on-screen.
+- **New host test suites.** `test_url_input` (13 cases),
+  `test_speed_meter` (7 cases), `test_eta_format` (7 cases). Total
+  off-target coverage is now 50 cases under ASan/UBSan.
+
+### Changed
+- **Bumped HTTP `User-Agent`** to `3DS-Zip-Extractor/1.1.0`.
+- **Version badge** in `README.md` updated to `1.1.0`.
+- **File browser legend** updated to reflect the new local-extract
+  action (`A: Enter/Extract`, `Y: Use as path`, `X: Refresh`).
+
+### Notes
+- The bottom-screen rendering is shared by every top-screen state
+  through a small "bottom context" registered once at startup
+  (`gui_set_bottom_context`). The active item is tracked via
+  `gui_set_bottom_active` while a download is running.
+- swkbd UI, real touch dragging, LED MCU notifications and the exact
+  on-device colour rendering remain manually verified — only the pure
+  helpers (`url_is_valid_http`, `speed_meter_*`, `format_eta`) are
+  exercised by the host test suite.
+
+---
+
+## [1.0.1-refactor]
+
 ### Added
 - **Modular source layout.** `source/main.c` has been split into focused
   modules with public headers in `include/`:
