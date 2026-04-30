@@ -1,8 +1,13 @@
-> **Stato attuale (2026-04-30):** il refactor modulare è stato completato.
-> Tutti i moduli elencati nella sezione 3 esistono in `source/` e in
-> `include/`, la build con `make` è verde su `devkitpro/devkitarm:latest`
-> e la suite host test in `tests/` passa con ASan/UBSan. Aggiornare questo
-> file quando si introducono nuovi moduli o si cambiano comandi di build.
+> **Stato attuale (2026-04-30, v1.1.0):** la **Fase 3 UX/GUI** è
+> completata. La schermata bottom è una queue interattiva persistente
+> con action bar virtuale; aggiunta in-app via swkbd (`Y` dal MENU);
+> estrazione locale dal file browser; speed meter rolling 2 s + ETA
+> `mm:ss`; barra di progresso percentuale per l'estrazione (con
+> spinner di fallback). Nuovi moduli puri host-testabili:
+> `speed_meter`, `eta_format`, validator di `url_input`. Build verde su
+> `devkitpro/devkitarm:latest`; suite host di 50 test passa con
+> ASan/UBSan. Aggiornare questo file quando si introducono nuovi
+> moduli o si cambiano comandi di build.
 >
 > # CLAUDE.md
 
@@ -57,7 +62,11 @@ L'applicazione viene distribuita come `.3dsx` da lanciare dall'**Homebrew Launch
 │   ├── integrity.c         # SHA-256 + verify_integrity (mbedtls/host)
 │   ├── file_browser.c      # File browser SD card
 │   ├── led.c               # Notifiche LED MCU
-│   └── queue.c             # Rendering coda di download
+│   ├── queue.c             # Rendering coda di download (top schermata X)
+│   ├── gui_widgets.c       # Widget touch (gui_button_t, action bar, scroll)
+│   ├── url_input.c         # swkbd + validator pure (url_is_valid_http)
+│   ├── speed_meter.c       # Rolling-window throughput meter (puro)
+│   └── eta_format.c        # Formatter mm:ss (puro, host-testabile)
 ├── include/                # Header pubblici corrispondenti a source/
 ├── tests/                  # Unit test off-target (host build)
 │   ├── Makefile.host

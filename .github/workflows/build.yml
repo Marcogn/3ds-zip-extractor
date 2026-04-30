@@ -71,7 +71,30 @@ jobs:
           name: 3ds-zip-extractor-3dsx
           path: dist/
 
-      - name: Create Release
+      - name: Pick release notes
+        id: notes
+        run: |
+          tag="${GITHUB_REF##refs/tags/}"
+          file="RELEASE_NOTES_${tag}.md"
+          if [ -f "$file" ]; then
+            echo "Using release notes from $file"
+            echo "body_path=$file" >> "$GITHUB_OUTPUT"
+          else
+            echo "No tagged notes file ($file); will fall back to auto-generated."
+            echo "body_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release (with curated notes)
+        if: steps.notes.outputs.body_path != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.3dsx
+            dist/*.smdh
+          body_path: ${{ steps.notes.outputs.body_path }}
+
+      - name: Create Release (auto-generated notes)
+        if: steps.notes.outputs.body_path == ''
         uses: softprops/action-gh-release@v2
         with:
           files: |

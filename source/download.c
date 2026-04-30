@@ -172,7 +172,7 @@ Result download_file(const AppConfig* cfg,
     // store. Documented trade-off (see SECURITY.md).
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "3DS-Zip-Extractor/1.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "3DS-Zip-Extractor/1.1.0");
 
     if (data.resume && data.downloaded > 0) {
         curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)data.downloaded);

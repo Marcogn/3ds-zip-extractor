@@ -45,7 +45,11 @@
 | `led` | `source/led.c`, `include/led.h` | ❌ (libctru) | Thin wrapper for the MCUHWC LED notifications. |
 | `file_browser` | `source/file_browser.c`, `include/file_browser.h` | ❌ (citro2d) | SD card directory browser (used to choose extraction path). |
 | `queue` | `source/queue.c`, `include/queue.h` | ❌ (citro2d) | Renders the download/queue status screen on the top screen. `DownloadQueue` is just an alias for `AppConfig`. |
-| `gui` | `source/gui.c`, `include/gui.h` | ❌ (citro2d/3d) | Common rendering helpers (status, menu, progress, error). Owns the dark-blue theme constants. |
+| `gui` | `source/gui.c`, `include/gui.h` | ❌ (citro2d/3d) | Common rendering helpers (status, menu, progress, error). Owns the dark-blue theme constants. Hosts the persistent **bottom-screen context** (queue + virtual action bar) reused by every top state. |
+| `gui_widgets` | `source/gui_widgets.c`, `include/gui_widgets.h` | ❌ (citro2d) | Reusable touch widgets: `gui_button_t` hit-test, button rendering, the 5-button action bar, and the cooperative `gui_scroll_t` D-Pad/touch-drag scroll helper. |
+| `url_input` | `source/url_input.c`, `include/url_input.h` | ✅ (validator) / ❌ (`url_input_prompt` swkbd) | `url_is_valid_http` is host-tested; the swkbd prompt and the additive `url_input_append_to_config` writer are target-only. |
+| `speed_meter` | `source/speed_meter.c`, `include/speed_meter.h` | ✅ | Rolling 2-second / 16-sample throughput estimator powering the download `MB/s` + ETA display. Used by `download.c`. |
+| `eta_format` | `source/eta_format.c`, `include/eta_format.h` | ✅ | `format_eta` — `mm:ss` formatter, capped at `99:59`, `--:--` for negatives. Used by `gui.c`. |
 | `main` | `source/main.c` | ❌ | App lifecycle: init/shutdown, state machine `MENU → BROWSER/QUEUE/RUNNING → SUMMARY → MENU/EXIT`, single-thread cooperative loop. |
 
 ## 3. Build pipeline
