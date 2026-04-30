@@ -1,8 +1,8 @@
-> **Stato attuale (2026-04-30):** questo documento descrive lo stato **target** del
-> repository dopo il refactor pianificato (vedi prompt di lavoro nelle issue/PR).
-> Alcuni moduli marcati `[post-refactor]` non esistono ancora nel codice:
-> al momento `source/main.c` è monolitico e contiene tutta la logica.
-> Aggiornare questo file mano a mano che il refactor procede.
+> **Stato attuale (2026-04-30):** il refactor modulare è stato completato.
+> Tutti i moduli elencati nella sezione 3 esistono in `source/` e in
+> `include/`, la build con `make` è verde su `devkitpro/devkitarm:latest`
+> e la suite host test in `tests/` passa con ASan/UBSan. Aggiornare questo
+> file quando si introducono nuovi moduli o si cambiano comandi di build.
 >
 > # CLAUDE.md
 
@@ -48,14 +48,16 @@ L'applicazione viene distribuita come `.3dsx` da lanciare dall'**Homebrew Launch
 .
 ├── source/                 # Codice C target 3DS
 │   ├── main.c              # Entry point + state machine principale
-│   ├── archive_extractor.c # Wrapper libarchive (multi-formato)
+│   ├── archive_extractor.c # Driver libarchive (estrazione multi-formato)
+│   ├── archive_extractor_detect.c # Magic-byte sniffing (puro, host-testabile)
 │   ├── gui.c               # Rendering citro2d (top + bottom screen)
-│   ├── config.c            # Parser config.txt           [post-refactor]
-│   ├── download.c          # libcurl + retry             [post-refactor]
-│   ├── gdrive.c            # Conversione URL Google Drive [post-refactor]
-│   ├── file_browser.c      # File browser SD card        [post-refactor]
-│   ├── led.c               # Notifiche LED MCU           [post-refactor]
-│   └── queue.c             # Gestione coda download       [post-refactor]
+│   ├── config.c            # Parser config.txt (puro, host-testabile)
+│   ├── download.c          # libcurl + retry + resume
+│   ├── gdrive.c            # Conversione URL Google Drive (puro)
+│   ├── integrity.c         # SHA-256 + verify_integrity (mbedtls/host)
+│   ├── file_browser.c      # File browser SD card
+│   ├── led.c               # Notifiche LED MCU
+│   └── queue.c             # Rendering coda di download
 ├── include/                # Header pubblici corrispondenti a source/
 ├── tests/                  # Unit test off-target (host build)
 │   ├── Makefile.host

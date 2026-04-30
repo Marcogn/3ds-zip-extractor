@@ -43,6 +43,7 @@ GRAPHICS	:=	gfx
 APP_TITLE	    := 3DS Zip Extractor
 APP_DESCRIPTION	:= Download and extract archives
 APP_AUTHOR	    := Marcogn
+ICON		    := icon.png
 
 #---------------------------------------------------------------------------------
 # options for code generation

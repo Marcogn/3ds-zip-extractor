@@ -1,10 +1,14 @@
 # Build directories
+build/
 build/*.o
 build/*.d
 build/*.map
 build/*.lst
 *.elf
-# *.smdh - REMOVED: We need to commit the SMDH file for the build to work
+
+# Build artifacts (published as Release assets, not tracked in git)
+*.3dsx
+*.smdh
 
 # Editor files
 *.swp
@@ -30,3 +34,16 @@ lib/
 
 # Nested duplicated directories
 _codeql_detected_source_root/
+
+# Host test artifacts
+tests/test_gdrive
+tests/test_config
+tests/test_archive_detect
+tests/test_sha256
+tests/*.gcda
+tests/*.gcno
+tests/coverage/
+tests/fixtures/tiny.*
+tests/fixtures/empty.bin
+tests/fixtures/three_bytes.bin
+tests/fixtures/not_an_archive.bin

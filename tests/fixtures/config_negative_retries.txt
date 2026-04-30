@@ -1,0 +1,2 @@
+max_retries=-1
+https://example.com/x.zip

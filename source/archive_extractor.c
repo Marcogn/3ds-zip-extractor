@@ -1,4 +1,5 @@
 #include "archive_extractor.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,30 +11,60 @@
 #include <archive_entry.h>
 #include <3ds.h>
 
-// Stub implementations for missing functions on 3DS
-// umask is declared but not implemented in devkitARM
+// Stub implementations for symbols missing on devkitARM. Each one logs a
+// one-shot warning to stderr the first time it's called so that unexpected
+// usage surfaces during testing instead of failing silently.
+//
+// These stubs are intentionally honest: they don't simulate the real
+// behaviour, they just keep the link step happy and tell us when libarchive
+// (or any other dependency) actually reaches for them.
+
+static void warn_once(bool* warned, const char* name) {
+    if (!*warned) {
+        *warned = true;
+        fprintf(stderr,
+                "[3ds-zip-extractor] stub: %s called (no-op on 3DS)\n",
+                name);
+    }
+}
+
 mode_t umask(mode_t mask) {
-    return 0022;  // Return default umask
+    static bool warned = false;
+    warn_once(&warned, "umask");
+    (void)mask;
+    return 0022;  // Return default umask.
 }
 
-// getpwnam is declared but not implemented in devkitARM
 struct passwd *getpwnam(const char *name) {
+    static bool warned = false;
+    warn_once(&warned, "getpwnam");
+    (void)name;
     return NULL;
 }
 
-// getgrnam is declared but not implemented in devkitARM
 struct group *getgrnam(const char *name) {
+    static bool warned = false;
+    warn_once(&warned, "getgrnam");
+    (void)name;
     return NULL;
 }
 
-// LZ4 functions are not available in 3DS portlibs
+// LZ4 is not available in 3DS portlibs. The stubs return error so libarchive
+// will refuse LZ4-compressed archives with a clear status code.
 int LZ4_decompress_safe(const char* src, char* dst, int compressedSize, int dstCapacity) {
-    return -1;  // Not supported
+    static bool warned = false;
+    warn_once(&warned, "LZ4_decompress_safe");
+    (void)src; (void)dst; (void)compressedSize; (void)dstCapacity;
+    return -1;
 }
 
 int LZ4_decompress_safe_usingDict(const char* src, char* dst, int srcSize, int dstCapacity,
                                    const char* dictStart, int dictSize) {
-    return -1;  // Not supported
+    static bool warned = false;
+    warn_once(&warned, "LZ4_decompress_safe_usingDict");
+    (void)src; (void)dst; (void)srcSize; (void)dstCapacity;
+    (void)dictStart; (void)dictSize;
+    return -1;
 }
 
 #define BUFFER_SIZE (128 * 1024)  // 128KB buffer for extraction
@@ -59,91 +90,8 @@ static int mkdir_recursive(const char* path) {
     return mkdir(tmp, 0777);
 }
 
-// Detect archive type by file signature (magic bytes)
-ArchiveType detect_archive_type(const char* file_path) {
-    FILE* f = fopen(file_path, "rb");
-    if (!f) {
-        return ARCHIVE_UNKNOWN;
-    }
-
-    unsigned char sig[16] = {0};
-    size_t read = fread(sig, 1, sizeof(sig), f);
-    fclose(f);
-
-    if (read < 4) {
-        return ARCHIVE_UNKNOWN;
-    }
-
-    // ZIP: PK\x03\x04 or PK\x05\x06 (empty zip)
-    if (sig[0] == 'P' && sig[1] == 'K' && (sig[2] == 0x03 || sig[2] == 0x05)) {
-        return ARCHIVE_ZIP;
-    }
-
-    // GZIP: 0x1f 0x8b
-    if (sig[0] == 0x1f && sig[1] == 0x8b) {
-        return ARCHIVE_GZIP;
-    }
-
-    // BZIP2: BZ
-    if (sig[0] == 'B' && sig[1] == 'Z') {
-        return ARCHIVE_BZIP2;
-    }
-
-    // XZ: 0xFD 0x37 0x7A 0x58 0x5A 0x00
-    if (sig[0] == 0xFD && sig[1] == 0x37 && sig[2] == 0x7A &&
-        sig[3] == 0x58 && sig[4] == 0x5A && sig[5] == 0x00) {
-        return ARCHIVE_XZ;
-    }
-
-    // 7z: 37 7A BC AF 27 1C
-    if (sig[0] == 0x37 && sig[1] == 0x7A && sig[2] == 0xBC &&
-        sig[3] == 0xAF && sig[4] == 0x27 && sig[5] == 0x1C) {
-        return ARCHIVE_7Z;
-    }
-
-    // RAR: Rar!\x1a\x07 (RAR 4.x) or Rar!\x1a\x07\x01\x00 (RAR 5.x)
-    if (sig[0] == 'R' && sig[1] == 'a' && sig[2] == 'r' && sig[3] == '!' &&
-        sig[4] == 0x1a && sig[5] == 0x07) {
-        return ARCHIVE_RAR;
-    }
-
-    // TAR (ustar format): "ustar" at offset 257
-    // Need to read more data for TAR detection
-    f = fopen(file_path, "rb");
-    if (f) {
-        char ustar[6] = {0};
-        fseek(f, 257, SEEK_SET);
-        if (fread(ustar, 1, 5, f) == 5) {
-            if (strncmp(ustar, "ustar", 5) == 0) {
-                fclose(f);
-                return ARCHIVE_TAR;
-            }
-        }
-        fclose(f);
-    }
-
-    // ZSTD: 0x28 0xB5 0x2F 0xFD
-    if (sig[0] == 0x28 && sig[1] == 0xB5 && sig[2] == 0x2F && sig[3] == 0xFD) {
-        return ARCHIVE_ZSTD;
-    }
-
-    return ARCHIVE_UNKNOWN;
-}
-
-// Get archive type name
-const char* get_archive_type_name(ArchiveType type) {
-    switch (type) {
-        case ARCHIVE_ZIP: return "ZIP";
-        case ARCHIVE_TAR: return "TAR";
-        case ARCHIVE_GZIP: return "GZIP/TAR.GZ";
-        case ARCHIVE_BZIP2: return "BZIP2/TAR.BZ2";
-        case ARCHIVE_XZ: return "XZ/TAR.XZ";
-        case ARCHIVE_7Z: return "7-Zip";
-        case ARCHIVE_RAR: return "RAR";
-        case ARCHIVE_ZSTD: return "ZSTD/TAR.ZSTD";
-        default: return "Unknown";
-    }
-}
+// Detect / type-name / is_supported_archive moved to archive_extractor_detect.c
+// (kept pure to allow host-side unit tests).
 
 // Extract archive using libarchive (supports multiple formats)
 int extract_archive_libarchive(const char* archive_path, const char* output_dir,
@@ -185,10 +133,13 @@ int extract_archive_libarchive(const char* archive_path, const char* output_dir,
         return -3;
     }
 
-    // Use minimal options to avoid POSIX functions not available on 3DS
+    // Hardening: prevent zip-slip, symlink attacks, and absolute-path writes.
+    // ARCHIVE_EXTRACT_TIME is preserved so timestamps are restored.
     archive_write_disk_set_options(ext,
         ARCHIVE_EXTRACT_TIME |
-        ARCHIVE_EXTRACT_SECURE_NODOTDOT);
+        ARCHIVE_EXTRACT_SECURE_NODOTDOT |
+        ARCHIVE_EXTRACT_SECURE_SYMLINKS |
+        ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS);
 
     // Don't use standard lookup - causes issues with getpwnam/getgrnam on 3DS
     // archive_write_disk_set_standard_lookup(ext);
@@ -263,10 +214,4 @@ int extract_archive_libarchive(const char* archive_path, const char* output_dir,
     archive_write_free(ext);
 
     return cancelled ? -4 : file_count;
-}
-
-// Check if file is a supported archive
-bool is_supported_archive(const char* file_path) {
-    ArchiveType type = detect_archive_type(file_path);
-    return type != ARCHIVE_UNKNOWN;
 }

@@ -1,0 +1,88 @@
+#---------------------------------------------------------------------------------
+# Host build for 3ds-zip-extractor unit tests.
+#
+# These tests run on a normal Linux/macOS host (no devkitARM, no 3DS).
+# Only the *pure* modules of the project (config, gdrive, integrity,
+# archive_extractor:detect_archive_type) are linked here. UI / network
+# / on-disk extraction code is excluded — that part is exercised on
+# the real device.
+#---------------------------------------------------------------------------------
+
+CC      ?= cc
+CSTD    ?= -std=c11
+CFLAGS  ?= $(CSTD) -O0 -g -Wall -Wextra -Wno-unused-parameter \
+           -DHOST_BUILD=1 \
+           -I. -I../include
+LDFLAGS ?=
+
+ASAN_FLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
+
+# Pure sources from the main project that we link into every test binary.
+PROJECT_PURE := \
+    ../source/config.c \
+    ../source/gdrive.c \
+    ../source/integrity.c
+
+# Unity vendor.
+UNITY := unity.c
+
+# Test binaries.
+TEST_GDRIVE          := test_gdrive
+TEST_CONFIG          := test_config
+TEST_ARCHIVE_DETECT  := test_archive_detect
+TEST_SHA256          := test_sha256
+
+ALL_TESTS := $(TEST_GDRIVE) $(TEST_CONFIG) $(TEST_ARCHIVE_DETECT) $(TEST_SHA256)
+
+.PHONY: all test test-asan clean fixtures coverage help
+
+all: $(ALL_TESTS)
+
+help:
+	@echo "Targets:"
+	@echo "  test       - build and run all unit tests"
+	@echo "  test-asan  - same, with AddressSanitizer + UBSan"
+	@echo "  coverage   - generate gcov/lcov HTML report (needs lcov)"
+	@echo "  clean      - remove build artifacts"
+
+# Generic test rule — each test gets the full set of pure sources plus
+# its own *.c file plus unity.c.
+$(TEST_GDRIVE): test_gdrive.c $(UNITY) $(PROJECT_PURE)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+$(TEST_CONFIG): test_config.c $(UNITY) $(PROJECT_PURE)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+$(TEST_ARCHIVE_DETECT): test_archive_detect.c $(UNITY) ../source/archive_extractor_detect.c
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+$(TEST_SHA256): test_sha256.c $(UNITY) $(PROJECT_PURE)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+fixtures:
+	@./make_fixtures.sh
+
+test: fixtures $(ALL_TESTS)
+	@set -e; for t in $(ALL_TESTS); do echo "=== $$t ==="; ./$$t; done
+	@echo "All host tests passed."
+
+test-asan:
+	@$(MAKE) -f Makefile.host CFLAGS="$(CFLAGS) $(ASAN_FLAGS)" LDFLAGS="$(LDFLAGS) $(ASAN_FLAGS)" test
+
+coverage:
+	@$(MAKE) -f Makefile.host clean
+	@$(MAKE) -f Makefile.host CFLAGS="$(CFLAGS) -O0 --coverage" LDFLAGS="$(LDFLAGS) --coverage" test
+	@mkdir -p coverage
+	@command -v lcov >/dev/null 2>&1 || { echo "lcov not installed"; exit 1; }
+	@lcov --capture --directory . --output-file coverage/lcov.info \
+	      --include "$(CURDIR)/../source/*"
+	@genhtml coverage/lcov.info --output-directory coverage
+	@echo "Coverage report: coverage/index.html"
+
+clean:
+	@rm -f $(ALL_TESTS) *.o *.gcda *.gcno
+	@rm -rf coverage
+	@rm -f fixtures/tiny.zip fixtures/tiny.tar fixtures/tiny.gz \
+	       fixtures/tiny.bz2 fixtures/tiny.xz fixtures/tiny.7z \
+	       fixtures/tiny.zst fixtures/tiny.rar fixtures/not_an_archive.bin \
+	       fixtures/empty.bin fixtures/three_bytes.bin

@@ -2,849 +2,74 @@
 #include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
-#include <dirent.h>
 #include <sys/stat.h>
 #include <3ds.h>
 #include <citro2d.h>
 #include <citro3d.h>
 #include <curl/curl.h>
-#include <zlib.h>
-#include "gui.h"
+
 #include "archive_extractor.h"
+#include "config.h"
+#include "download.h"
+#include "file_browser.h"
+#include "gui.h"
+#include "integrity.h"
+#include "led.h"
+#include "queue.h"
 
-#define DOWNLOAD_BUFFER_SIZE (128 * 1024)  // 128KB buffer
-#define DEFAULT_EXTRACT_PATH "sdmc:/extracted/"
-#define TEMP_DOWNLOAD_PATH "sdmc:/temp_download.tmp"
 #define CONFIG_FILE_PATH "sdmc:/3ds/zip-extractor/config.txt"
-#define MAX_URLS 50
-#define MAX_URL_LENGTH 512
-#define MAX_PATH_LENGTH 256
-#define MAX_DIR_ENTRIES 100
 
-// Global GUI context for hybrid rendering
+// Global GUI context for hybrid rendering.
 static GUI g_gui = {0};
 static bool g_use_gui = false;
 
-// Sleep mode handling
-static bool enable_sleep_mode() {
-    // Disable sleep mode to continue downloading in background
-    APT_SetAppCpuTimeLimit(30); // 30% CPU limit for background
-    return true;
-}
-
-static void restore_sleep_mode() {
-    APT_SetAppCpuTimeLimit(0); // Restore normal CPU usage
-}
-
-// LED notification functions
-static void set_led_notification(u8 pattern) {
-    // Use MCUHWC for LED control
-    // Pattern: 0 = off, 1-7 = various blink patterns
-    u8 led_state = 0;
-
-    if (pattern == 1) {
-        // Green notification pattern
-        led_state = 1; // Blink pattern
-    } else if (pattern == 2) {
-        // Pink/Red notification pattern
-        led_state = 2; // Different blink pattern
-    }
-
-    // Note: Actual LED control requires mcuHwcInit() and specific API calls
-    // This is a simplified version
-}
-static void led_notification_green() {
-    // Green LED: Download + Extraction completed
-    set_led_notification(1);
-}
-
-static void led_notification_pink() {
-    // Pink/Red LED: Download completed (before extraction)
-    set_led_notification(2);
-}
-
-static void led_notification_off() {
-    // Turn off LED notification
-    set_led_notification(0);
-}
-
-
-// Download states for queue management
-typedef enum {
-    DOWNLOAD_PENDING,
-    DOWNLOAD_IN_PROGRESS,
-    DOWNLOAD_COMPLETED,
-    DOWNLOAD_FAILED,
-    DOWNLOAD_SKIPPED
-} DownloadState;
-
-// Directory entry for file browser
-typedef struct {
-    char name[256];
-    bool is_directory;
-} DirEntry;
-
-typedef struct {
-    DirEntry entries[MAX_DIR_ENTRIES];
-    int count;
-    int selected;
-    char current_path[MAX_PATH_LENGTH];
-} FileBrowser;
-
-typedef struct {
-    FILE* file;
-    u64 downloaded;
-    u64 total;
-    bool resume;
-} DownloadData;
-
+// Tracks the currently-extracting archive for the GUI callback.
 typedef struct {
     u64 extracted_files;
-    u64 current_size;
     char current_file[256];
 } ExtractData;
-
-typedef struct {
-    char url[MAX_URL_LENGTH];
-    DownloadState state;
-    char error_msg[128];
-} DownloadItem;
-
-typedef struct {
-    DownloadItem items[MAX_URLS];
-    int count;
-    char extract_path[MAX_PATH_LENGTH];
-    bool auto_retry;
-    int max_retries;
-} DownloadQueue;
-
 static ExtractData extract_data = {0};
 
-// Initialize file browser
-static void init_file_browser(FileBrowser* browser, const char* start_path) {
-    strncpy(browser->current_path, start_path, MAX_PATH_LENGTH - 1);
-    browser->current_path[MAX_PATH_LENGTH - 1] = '\0';
-    browser->count = 0;
-    browser->selected = 0;
+// --- Sleep mode -----------------------------------------------------------
+
+static void enable_sleep_mode(void) {
+    APT_SetAppCpuTimeLimit(30);  // 30% CPU for background activity.
 }
 
-// Load directory contents into browser
-static int load_directory(FileBrowser* browser) {
-    DIR* dir = opendir(browser->current_path);
-    if (!dir) {
-        return -1;
-    }
-    
-    browser->count = 0;
-    
-    // Add parent directory entry if not at root
-    if (strcmp(browser->current_path, "sdmc:/") != 0) {
-        strncpy(browser->entries[browser->count].name, "..", sizeof(browser->entries[0].name) - 1);
-        browser->entries[browser->count].is_directory = true;
-        browser->count++;
-    }
-    
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL && browser->count < MAX_DIR_ENTRIES) {
-        // Skip . and ..
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-        
-        strncpy(browser->entries[browser->count].name, entry->d_name, sizeof(browser->entries[0].name) - 1);
-        browser->entries[browser->count].name[sizeof(browser->entries[0].name) - 1] = '\0';
-        browser->entries[browser->count].is_directory = (entry->d_type == DT_DIR);
-        browser->count++;
-    }
-    
-    closedir(dir);
-    
-    // Sort: directories first, then alphabetically
-    for (int i = 0; i < browser->count - 1; i++) {
-        for (int j = i + 1; j < browser->count; j++) {
-            bool swap = false;
-            
-            // Directories before files
-            if (browser->entries[i].is_directory && !browser->entries[j].is_directory) {
-                continue;
-            }
-            if (!browser->entries[i].is_directory && browser->entries[j].is_directory) {
-                swap = true;
-            }
-            // Alphabetical within same type
-            else if (strcmp(browser->entries[i].name, browser->entries[j].name) > 0) {
-                swap = true;
-            }
-            
-            if (swap) {
-                DirEntry temp = browser->entries[i];
-                browser->entries[i] = browser->entries[j];
-                browser->entries[j] = temp;
-            }
-        }
-    }
-    
-    browser->selected = 0;
-    return browser->count;
+static void restore_sleep_mode(void) {
+    APT_SetAppCpuTimeLimit(0);
 }
 
-// Display file browser using GUI
-static void display_file_browser(FileBrowser* browser, int scroll_offset) {
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+// --- Extraction adapter ---------------------------------------------------
 
-    C2D_TargetClear(g_top, COLOR_BG);
-    C2D_SceneBegin(g_top);
-
-    C2D_TextBufClear(g_textBuf);
-    C2D_Text text;
-    float y = 5.0f;
-
-    // Title bar
-    C2D_DrawRectSolid(0, 0, 0.5f, 400, 22, COLOR_ACCENT);
-    C2D_TextParse(&text, g_textBuf, " File Browser - Select Path");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 5.0f, 3.0f, 0.5f, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255));
-    y = 25.0f;
-
-    // Current path
-    char pathBuf[64];
-    snprintf(pathBuf, sizeof(pathBuf), "%.50s", browser->current_path);
-    C2D_TextParse(&text, g_textBuf, pathBuf);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-    y += 15.0f;
-
-    C2D_DrawRectSolid(10, y, 0.5f, 380, 1, COLOR_ACCENT);
-    y += 5.0f;
-
-    // File list
-    int visible_lines = 10;
-    int start = scroll_offset;
-    int end = start + visible_lines;
-    if (end > browser->count) end = browser->count;
-    
-    for (int i = start; i < end; i++) {
-        char lineBuf[64];
-        const char* type_marker = browser->entries[i].is_directory ? "/" : "";
-        snprintf(lineBuf, sizeof(lineBuf), "%.45s%s", browser->entries[i].name, type_marker);
-
-        if (i == browser->selected) {
-            C2D_DrawRectSolid(10, y - 1, 0.5f, 380, 14, COLOR_ACCENT);
-            C2D_TextParse(&text, g_textBuf, lineBuf);
-            C2D_TextOptimize(&text);
-            C2D_DrawText(&text, C2D_WithColor, 15.0f, y, 0.5f, 0.38f, 0.38f, C2D_Color32(0, 0, 0, 255));
-        } else {
-            C2D_TextParse(&text, g_textBuf, lineBuf);
-            C2D_TextOptimize(&text);
-            C2D_DrawText(&text, C2D_WithColor, 15.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
-        }
-        y += 14.0f;
-    }
-    
-    // Controls
-    y = 200.0f;
-    C2D_TextParse(&text, g_textBuf, "D-Pad: Navigate  A: Enter  Y: Select");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
-    y += 12.0f;
-    C2D_TextParse(&text, g_textBuf, "B: Cancel  X: New Folder");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_TEXT);
-
-    C2D_TargetClear(g_bottom, COLOR_BG);
-    C2D_SceneBegin(g_bottom);
-
-    C3D_FrameEnd(0);
-}
-
-// Forward declaration
-static void convert_gdrive_url(const char* input_url, char* output_url, size_t output_size);
-
-/*
-// Handle Google Drive large file confirmation
-// NOTE: This function is currently not used but kept for future reference
-static bool handle_gdrive_confirmation(const char* url, char* final_url, size_t final_url_size) {
-    // Check if URL is already a direct download link
-    if (strstr(url, "drive.google.com/uc") != NULL) {
-        strncpy(final_url, url, final_url_size - 1);
-        final_url[final_url_size - 1] = '\0';
-        return true;
-    }
-    
-    // For large files, Google Drive requires a confirmation token
-    // We need to make a request and check for the confirmation page
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        return false;
-    }
-    
-    // First, try the normal conversion
-    char converted[512];
-    convert_gdrive_url(url, converted, sizeof(converted));
-    
-    // For files >100MB, we need to extract the confirm token
-    // This is a simplified approach - in reality, you'd need to:
-    // 1. Make initial request
-    // 2. Parse HTML for confirm token
-    // 3. Make second request with token
-    
-    // For now, we'll just add a warning parameter that helps with some cases
-    if (strstr(converted, "?") != NULL) {
-        snprintf(final_url, final_url_size, "%s&confirm=t", converted);
-    } else {
-        snprintf(final_url, final_url_size, "%s?confirm=t", converted);
-    }
-    
-    curl_easy_cleanup(curl);
-    return true;
-}
-*/
-
-// Function to read configuration file with settings and URLs
-static int read_config_file(const char* file_path, DownloadQueue* queue) {
-    FILE* file = fopen(file_path, "r");
-    if (!file) {
-        return -1;
-    }
-    
-    // Set defaults
-    strncpy(queue->extract_path, DEFAULT_EXTRACT_PATH, MAX_PATH_LENGTH - 1);
-    queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
-    queue->auto_retry = false;
-    queue->max_retries = 3;
-    queue->count = 0;
-    
-    char line[MAX_URL_LENGTH];
-    
-    while (fgets(line, sizeof(line), file) != NULL) {
-        // Remove trailing newline and carriage return
-        size_t len = strlen(line);
-        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-            line[len-1] = '\0';
-            len--;
-        }
-        
-        // Skip empty lines and comments
-        if (len == 0 || line[0] == '#') {
-            continue;
-        }
-        
-        // Check for settings (format: setting=value)
-        if (strstr(line, "extract_path=") == line) {
-            strncpy(queue->extract_path, line + 13, MAX_PATH_LENGTH - 1);
-            queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
-            continue;
-        }
-        
-        if (strstr(line, "auto_retry=") == line) {
-            queue->auto_retry = (strcmp(line + 11, "true") == 0 || strcmp(line + 11, "1") == 0);
-            continue;
-        }
-        
-        if (strstr(line, "max_retries=") == line) {
-            queue->max_retries = atoi(line + 12);
-            if (queue->max_retries < 0) queue->max_retries = 0;
-            if (queue->max_retries > 10) queue->max_retries = 10;
-            continue;
-        }
-        
-        // Otherwise, treat as URL
-        if (queue->count < MAX_URLS) {
-            strncpy(queue->items[queue->count].url, line, MAX_URL_LENGTH - 1);
-            queue->items[queue->count].url[MAX_URL_LENGTH - 1] = '\0';
-            queue->items[queue->count].state = DOWNLOAD_PENDING;
-            queue->items[queue->count].error_msg[0] = '\0';
-            queue->count++;
-        }
-    }
-    
-    fclose(file);
-    return queue->count;
-}
-
-// Create example config file if it doesn't exist
-static bool create_example_config(const char* file_path) {
-    FILE* file = fopen(file_path, "w");
-    if (!file) {
-        return false;
-    }
-
-    // Write example configuration
-    fprintf(file, "# 3DS Archive Extractor - Configuration File\n");
-    fprintf(file, "# Lines starting with # are comments\n");
-    fprintf(file, "#\n");
-    fprintf(file, "# Settings:\n");
-    fprintf(file, "extract_path=sdmc:/extracted/\n");
-    fprintf(file, "auto_retry=true\n");
-    fprintf(file, "max_retries=3\n");
-    fprintf(file, "#\n");
-    fprintf(file, "# Add your URLs below (one per line):\n");
-    fprintf(file, "# Example:\n");
-    fprintf(file, "# https://example.com/file.zip\n");
-    fprintf(file, "# https://drive.google.com/file/d/FILE_ID/view\n");
-    fprintf(file, "#\n");
-    fprintf(file, "# Supported formats:\n");
-    fprintf(file, "# ZIP, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, TAR.ZSTD\n");
-    fprintf(file, "# 7Z, RAR, GZIP, BZIP2, XZ, ZSTD\n");
-    fprintf(file, "#\n");
-    fprintf(file, "# Add your URLs here:\n");
-    fprintf(file, "\n");
-
-    fclose(file);
-    return true;
-}
-
-// Display queue status using GUI
-static void display_queue_status(DownloadQueue* queue, int current_page) {
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-
-    C2D_TargetClear(g_top, COLOR_BG);
-    C2D_SceneBegin(g_top);
-
-    C2D_TextBufClear(g_textBuf);
-    C2D_Text text;
-    float y = 5.0f;
-
-    // Title bar
-    C2D_DrawRectSolid(0, 0, 0.5f, 400, 22, COLOR_ACCENT);
-    C2D_TextParse(&text, g_textBuf, " Queue Status");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 5.0f, 3.0f, 0.5f, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255));
-    y = 25.0f;
-
-    int items_per_page = 10;
-    int start = current_page * items_per_page;
-    int end = start + items_per_page;
-    if (end > queue->count) end = queue->count;
-    
-    char buf[64];
-    snprintf(buf, sizeof(buf), "Showing %d-%d of %d", start + 1, end, queue->count);
-    C2D_TextParse(&text, g_textBuf, buf);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-    y += 15.0f;
-
-    for (int i = start; i < end; i++) {
-        const char* state_str = "?";
-        u32 state_color = COLOR_TEXT;
-
-        switch (queue->items[i].state) {
-            case DOWNLOAD_PENDING: state_str = "[ ]"; state_color = COLOR_PENDING; break;
-            case DOWNLOAD_IN_PROGRESS: state_str = "[>]"; state_color = COLOR_PROGRESS; break;
-            case DOWNLOAD_COMPLETED: state_str = "[OK]"; state_color = COLOR_SUCCESS; break;
-            case DOWNLOAD_FAILED: state_str = "[X]"; state_color = COLOR_ERROR; break;
-            case DOWNLOAD_SKIPPED: state_str = "[-]"; state_color = COLOR_PENDING; break;
-        }
-        
-        snprintf(buf, sizeof(buf), "%s %.42s", state_str, queue->items[i].url);
-        C2D_TextParse(&text, g_textBuf, buf);
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.33f, 0.33f, state_color);
-        y += 13.0f;
-    }
-    
-    int total_pages = (queue->count + items_per_page - 1) / items_per_page;
-    if (total_pages == 0) total_pages = 1;
-
-    y = 195.0f;
-    snprintf(buf, sizeof(buf), "Page %d/%d", current_page + 1, total_pages);
-    C2D_TextParse(&text, g_textBuf, buf);
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.38f, 0.38f, COLOR_TEXT);
-    y += 14.0f;
-
-    C2D_TextParse(&text, g_textBuf, "L/R: Page  Y: Skip failed  B: Back");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
-
-    C2D_TargetClear(g_bottom, COLOR_BG);
-    C2D_SceneBegin(g_bottom);
-
-    C3D_FrameEnd(0);
-}
-
-// Function to convert Google Drive URLs to direct download links
-static void convert_gdrive_url(const char* input_url, char* output_url, size_t output_size) {
-    // Check if it's a Google Drive URL
-    if (strstr(input_url, "drive.google.com") != NULL) {
-        // Extract file ID from various Google Drive URL formats
-        char* id_start = NULL;
-        
-        // Format: https://drive.google.com/file/d/FILE_ID/view
-        if ((id_start = strstr(input_url, "/file/d/")) != NULL) {
-            id_start += 8; // Skip "/file/d/"
-            char* id_end = strchr(id_start, '/');
-            if (id_end) {
-                size_t id_len = id_end - id_start;
-                char file_id_buf[256];
-                strncpy(file_id_buf, id_start, id_len);
-                file_id_buf[id_len] = '\0';
-                // Use confirm parameter for large files (>100MB) to bypass virus scan warning
-                snprintf(output_url, output_size,
-                         "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
-                         file_id_buf);
-                return;
-            }
-        }
-        
-        // Format: https://drive.google.com/open?id=FILE_ID
-        // Format: https://drive.google.com/uc?id=FILE_ID
-        if ((id_start = strstr(input_url, "id=")) != NULL) {
-            id_start += 3; // Skip "id="
-            char* id_end = strpbrk(id_start, "&/ \t\n\r");
-            if (id_end) {
-                size_t id_len = id_end - id_start;
-                char file_id_buf[256];
-                if (id_len > 0 && id_len < sizeof(file_id_buf)) {
-                    strncpy(file_id_buf, id_start, id_len);
-                    file_id_buf[id_len] = '\0';
-                    snprintf(output_url, output_size,
-                             "https://drive.google.com/uc?export=download&id=%s&confirm=t",
-                             file_id_buf);
-                    return;
-                }
-            } else {
-                // ID is at the end of URL
-                snprintf(output_url, output_size, 
-                         "https://drive.google.com/uc?export=download&id=%s&confirm=t", 
-                         id_start);
-                return;
-            }
-        }
-
-        // Format: https://drive.google.com/drive/folders/... (not supported for download)
-        if (strstr(input_url, "/folders/") != NULL) {
-            printf("Warning: Folder URLs are not supported, only direct file links\n");
-        }
-    }
-    
-    // Not a Google Drive URL or couldn't parse, use original
-    strncpy(output_url, input_url, output_size - 1);
-    output_url[output_size - 1] = '\0';
-}
-
-// Callback for writing downloaded data
-static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
-    size_t realsize = size * nmemb;
-    DownloadData* data = (DownloadData*)userp;
-    
-    size_t written = fwrite(contents, 1, realsize, data->file);
-    data->downloaded += written;
-    
-    return written;
-}
-
-// Callback for download progress
-static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow,
-                            curl_off_t ultotal, curl_off_t ulnow) {
-    DownloadData* data = (DownloadData*)clientp;
-    
-    if (dltotal > 0) {
-        data->total = dltotal;
-    }
-    
-    // Check if user wants to cancel
-    hidScanInput();
-    u32 kDown = hidKeysDown();
-    if (kDown & KEY_B) {
-        return 1; // Abort download
-    }
-    
-    return 0;
-}
-
-// Update download progress display using GUI (like fast-uninstall)
-static void update_download_display(int current, int total, DownloadData* data, const char* url) {
-    gui_draw_download(current, total, url, data->downloaded, data->total);
-}
-
-// Download file with resume support
-static Result download_file(const char* url, const char* output_path, bool* cancelled, int current, int total) {
-    CURL* curl;
-    CURLcode res;
-    DownloadData data = {0};
-    *cancelled = false;
-    
-    // Check if partial file exists
-    FILE* check_file = fopen(output_path, "rb");
-    if (check_file) {
-        fseek(check_file, 0, SEEK_END);
-        data.downloaded = ftell(check_file);
-        fclose(check_file);
-        data.resume = true;
-    }
-    
-    // Open file for appending or writing
-    data.file = fopen(output_path, data.resume ? "ab" : "wb");
-    if (!data.file) {
-        printf("Failed to open output file\n");
-        return -1;
-    }
-    
-    curl = curl_easy_init();
-    if (!curl) {
-        fclose(data.file);
-        return -1;
-    }
-    
-    // Convert Google Drive URLs if needed
-    char converted_url[512];
-    convert_gdrive_url(url, converted_url, sizeof(converted_url));
-    
-    curl_easy_setopt(curl, CURLOPT_URL, converted_url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
-    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &data);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, DOWNLOAD_BUFFER_SIZE);
-    // Note: SSL verification is disabled due to certificate store limitations on 3DS
-    // This is a known trade-off for 3DS homebrew applications
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "3DS-Zip-Extractor/1.0");
-    
-    // Resume support
-    if (data.resume && data.downloaded > 0) {
-        curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)data.downloaded);
-    }
-    
-    // Initial display update
-    update_download_display(current, total, &data, converted_url);
-    
-    // Perform download with periodic display updates
-    res = curl_easy_perform(curl);
-    
-    // Final display update
-    if (res == CURLE_OK) {
-        update_download_display(current, total, &data, converted_url);
-    }
-    
-    curl_easy_cleanup(curl);
-    fclose(data.file);
-    
-    if (res == CURLE_ABORTED_BY_CALLBACK) {
-        *cancelled = true;
-        return -2;
-    }
-    
-    if (res != CURLE_OK) {
-        printf("Download failed: %s\n", curl_easy_strerror(res));
-        return -1;
-    }
-    
-    return 0;
-}
-
-// Simple ZIP structures (minimal implementation)
-#pragma pack(1)
-typedef struct {
-    u32 signature;           // 0x04034b50
-    u16 version;
-    u16 flags;
-    u16 compression;         // 0=store, 8=deflate
-    u16 mod_time;
-    u16 mod_date;
-    u32 crc32;
-    u32 compressed_size;
-    u32 uncompressed_size;
-    u16 filename_len;
-    u16 extra_len;
-} ZipLocalHeader;
-
-typedef struct {
-    u32 signature;           // 0x02014b50
-    u16 version_made;
-    u16 version_needed;
-    u16 flags;
-    u16 compression;
-    u16 mod_time;
-    u16 mod_date;
-    u32 crc32;
-    u32 compressed_size;
-    u32 uncompressed_size;
-    u16 filename_len;
-    u16 extra_len;
-    u16 comment_len;
-    u16 disk_start;
-    u16 internal_attr;
-    u32 external_attr;
-    u32 local_header_offset;
-} ZipCentralHeader;
-#pragma pack()
-
-#define ZIP_LOCAL_SIGNATURE 0x04034b50
-#define ZIP_CENTRAL_SIGNATURE 0x02014b50
-#define ZIP_END_SIGNATURE 0x06054b50
-
-// Create directory recursively
-static int mkdir_recursive(const char* path) {
-    char tmp[512];
-    char* p = NULL;
-    size_t len;
-
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    len = strlen(tmp);
-    if (tmp[len - 1] == '/')
-        tmp[len - 1] = 0;
-
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = 0;
-            mkdir(tmp, 0777);
-            *p = '/';
-        }
-    }
-    return mkdir(tmp, 0777);
-}
-
-// Extract single file from ZIP
-static int extract_zip_file(FILE* zip, ZipLocalHeader* header, const char* output_dir) {
-    char filename[512];
-    char fullpath[1024];
-
-    // Read filename
-    if (header->filename_len >= sizeof(filename)) {
-        printf("Filename too long\n");
-        fseek(zip, header->filename_len + header->extra_len, SEEK_CUR);
-        return -1;
-    }
-
-    fread(filename, 1, header->filename_len, zip);
-    filename[header->filename_len] = '\0';
-
-    // Skip extra field
-    fseek(zip, header->extra_len, SEEK_CUR);
-
-    // Build full output path
-    snprintf(fullpath, sizeof(fullpath), "%s%s", output_dir, filename);
-
-    // Check if it's a directory
-    if (filename[header->filename_len - 1] == '/') {
-        mkdir_recursive(fullpath);
-        fseek(zip, header->compressed_size, SEEK_CUR);
-        return 0;
-    }
-
-    // Create parent directories
-    char dirpath[1024];
-    snprintf(dirpath, sizeof(dirpath), "%s", fullpath);
-    char* last_slash = strrchr(dirpath, '/');
-    if (last_slash) {
-        *last_slash = '\0';
-        mkdir_recursive(dirpath);
-    }
-
-    // Open output file
-    FILE* out = fopen(fullpath, "wb");
-    if (!out) {
-        printf("Cannot create: %s\n", fullpath);
-        fseek(zip, header->compressed_size, SEEK_CUR);
-        return -1;
-    }
-
-    // Extract based on compression method
-    if (header->compression == 0) {
-        // Stored (no compression)
-        char buffer[8192];
-        u32 remaining = header->uncompressed_size;
-        while (remaining > 0) {
-            size_t to_read = (remaining < sizeof(buffer)) ? remaining : sizeof(buffer);
-            size_t read = fread(buffer, 1, to_read, zip);
-            if (read == 0) break;
-            fwrite(buffer, 1, read, out);
-            remaining -= read;
-        }
-    } else if (header->compression == 8) {
-        // Deflate compression
-        z_stream stream = {0};
-        if (inflateInit2(&stream, -MAX_WBITS) != Z_OK) {
-            printf("inflateInit2 failed\n");
-            fclose(out);
-            return -1;
-        }
-
-        unsigned char in_buffer[8192];
-        unsigned char out_buffer[8192];
-        u32 remaining = header->compressed_size;
-
-        while (remaining > 0) {
-            size_t to_read = (remaining < sizeof(in_buffer)) ? remaining : sizeof(in_buffer);
-            stream.avail_in = fread(in_buffer, 1, to_read, zip);
-            if (stream.avail_in == 0) break;
-
-            stream.next_in = in_buffer;
-            remaining -= stream.avail_in;
-
-            do {
-                stream.avail_out = sizeof(out_buffer);
-                stream.next_out = out_buffer;
-
-                int ret = inflate(&stream, Z_NO_FLUSH);
-                if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) {
-                    printf("inflate error: %d\n", ret);
-                    inflateEnd(&stream);
-                    fclose(out);
-                    return -1;
-                }
-
-                size_t have = sizeof(out_buffer) - stream.avail_out;
-                fwrite(out_buffer, 1, have, out);
-
-            } while (stream.avail_out == 0);
-        }
-
-        inflateEnd(&stream);
-    } else {
-        printf("Unsupported compression: %d\n", header->compression);
-        fclose(out);
-        fseek(zip, header->compressed_size, SEEK_CUR);
-        return -1;
-    }
-
-    fclose(out);
-    return 0;
-}
-
-// Callback for extraction progress
 static bool extraction_progress_callback(int file_count, const char* current_file, void* user_data) {
-    int* params = (int*)user_data;
-    int current = params[0];
-    int total = params[1];
-
+    (void)user_data;
     extract_data.extracted_files = file_count;
     strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
     extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
 
-    // Update display using GUI
     gui_draw_extraction(current_file, file_count);
 
-    // Check for cancel
     hidScanInput();
     if (hidKeysDown() & KEY_B) {
-        return true;  // Cancel extraction
+        return true;  // cancel
     }
-
-    return false;  // Continue extraction
+    return false;
 }
 
-// Extract archive with progress tracking (multi-format support)
-static Result extract_archive(const char* archive_path, const char* output_dir, int current, int total) {
+// Extract `archive_path` into `output_dir`. Returns 0 on success, -1 on
+// hard error, -2 if cancelled by user.
+static Result extract_archive(const char* archive_path, const char* output_dir) {
     extract_data.extracted_files = 0;
-    extract_data.current_size = 0;
     extract_data.current_file[0] = '\0';
 
-    // Detect archive type
     ArchiveType type = detect_archive_type(archive_path);
     const char* type_name = get_archive_type_name(type);
 
-    // Show extraction starting
     char msg[64];
     snprintf(msg, sizeof(msg), "Extracting %s archive...", type_name);
     gui_draw_status("Archive Extractor for 3DS", msg);
 
-    // Check if format is supported
     if (type == ARCHIVE_UNKNOWN) {
         gui_draw_error("Unsupported Format", "ZIP, TAR, 7Z, RAR supported");
         while (aptMainLoop()) {
@@ -855,16 +80,11 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
         return -1;
     }
 
-    // Extract using libarchive
-    int params[2] = {current, total};
     int file_count = extract_archive_libarchive(archive_path, output_dir,
-                                                 extraction_progress_callback, params);
-
-    // Remove temp archive file
+                                                 extraction_progress_callback, NULL);
     remove(archive_path);
 
     if (file_count == -4) {
-        // Cancelled by user
         gui_draw_status("Archive Extractor for 3DS", "Extraction cancelled!");
         while (aptMainLoop()) {
             hidScanInput();
@@ -873,12 +93,10 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
         }
         return -2;
     }
-
     if (file_count < 0) {
-        // Error during extraction
-        char errMsg[64];
-        snprintf(errMsg, sizeof(errMsg), "Extraction error: %d", file_count);
-        gui_draw_error("Extraction Failed", errMsg);
+        char err_msg[64];
+        snprintf(err_msg, sizeof(err_msg), "Extraction error: %d", file_count);
+        gui_draw_error("Extraction Failed", err_msg);
         while (aptMainLoop()) {
             hidScanInput();
             if (hidKeysDown() & KEY_A) break;
@@ -887,44 +105,32 @@ static Result extract_archive(const char* archive_path, const char* output_dir, 
         return -1;
     }
 
-    // Success - Trigger green LED notification
     led_notification_green();
-
     gui_draw_status("Extraction Complete!", "Press A to continue");
     while (aptMainLoop()) {
         hidScanInput();
         if (hidKeysDown() & KEY_A) break;
     }
-
     return 0;
 }
 
+// --- Main -----------------------------------------------------------------
+
 int main(int argc, char** argv) {
-    // Initialize graphics (like fast-uninstall)
+    (void)argc; (void)argv;
+
     gfxInitDefault();
-
-    // Initialize GUI with citro2d
     g_use_gui = gui_init(&g_gui);
-
     if (!g_use_gui) {
-        // Cannot continue without GUI
         gfxExit();
         return 1;
     }
 
-    // Show initializing screen
     gui_draw_status("Archive Extractor for 3DS", "Initializing...");
-
-    // Initialize PTMU for LED notifications
     ptmuInit();
-
-    // Enable sleep mode support (continue downloads in background)
     enable_sleep_mode();
 
     gui_draw_status("Archive Extractor for 3DS", "Initializing network...");
-
-    // Initialize networking
-    Result ret = 0;
     u32* socMemory = (u32*)memalign(0x1000, 0x100000);
     if (!socMemory) {
         gui_draw_error("Error", "Failed to allocate socket memory!");
@@ -937,9 +143,8 @@ int main(int argc, char** argv) {
         gfxExit();
         return 1;
     }
-    
-    ret = socInit(socMemory, 0x100000);
-    if (ret != 0) {
+
+    if (socInit(socMemory, 0x100000) != 0) {
         gui_draw_error("Network Error", "Failed to initialize network!");
         while (aptMainLoop()) {
             hidScanInput();
@@ -951,17 +156,11 @@ int main(int argc, char** argv) {
         gfxExit();
         return 1;
     }
-    
+
     gui_draw_status("Archive Extractor for 3DS", "Initializing downloads...");
-
-    // Initialize curl
     curl_global_init(CURL_GLOBAL_ALL);
-    
-    const char* extract_path = DEFAULT_EXTRACT_PATH;
 
-    gui_draw_status("Archive Extractor for 3DS", "Initializing...");
-
-    // Allocate queue on heap to avoid stack overflow (structure is very large)
+    // Heap-allocated to keep large structures off the small 3DS stack.
     DownloadQueue* queue = (DownloadQueue*)calloc(1, sizeof(DownloadQueue));
     if (!queue) {
         gui_draw_error("Memory Error", "Failed to allocate queue!");
@@ -979,106 +178,38 @@ int main(int argc, char** argv) {
     }
 
     gui_draw_status("Archive Extractor for 3DS", "Loading...");
-
-    // Create config directory if it doesn't exist
     mkdir("sdmc:/3ds", 0777);
     mkdir("sdmc:/3ds/zip-extractor", 0777);
-    // Ignore errors - directories may already exist
 
-    // Try to read configuration file
+    // Sweep up any orphaned `.part` files from previous runs.
+    download_cleanup_orphans();
+
     int url_count = read_config_file(CONFIG_FILE_PATH, queue);
 
-
-    // If config doesn't exist, create an example one and EXIT
+    // First-run experience: create an example config and ask user to edit.
     if (url_count < 0) {
         gui_draw_status("Archive Extractor for 3DS", "Config not found! Creating...");
-
-        // Small delay so user sees the message
         for (int i = 0; i < 30; i++) gspWaitForVBlank();
 
         if (create_example_config(CONFIG_FILE_PATH)) {
-            // Config created successfully - show message and force exit
             while (aptMainLoop()) {
                 hidScanInput();
                 if (hidKeysDown() & KEY_START) break;
-
-                // Show clear instructions
-                C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-                C2D_TargetClear(g_top, COLOR_BG);
-                C2D_SceneBegin(g_top);
-                C2D_TextBufClear(g_textBuf);
-                C2D_Text text;
-                float y = 10.0f;
-
-                C2D_TextParse(&text, g_textBuf, "Config File Created!");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.6f, 0.6f, COLOR_SUCCESS);
-                y += 30;
-
-                C2D_DrawRectSolid(10, y, 0.5f, 380, 2, COLOR_ACCENT);
-                y += 15;
-
-                C2D_TextParse(&text, g_textBuf, "Location:");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
-                y += 16;
-
-                C2D_TextParse(&text, g_textBuf, "  sdmc:/3ds/zip-extractor/config.txt");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-                y += 25;
-
-                C2D_TextParse(&text, g_textBuf, "What to do:");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.4f, 0.4f, COLOR_TEXT);
-                y += 16;
-
-                C2D_TextParse(&text, g_textBuf, "  1. Close this app (START)");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-                y += 14;
-
-                C2D_TextParse(&text, g_textBuf, "  2. Edit config.txt on your SD card");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-                y += 14;
-
-                C2D_TextParse(&text, g_textBuf, "  3. Add your download URLs");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-                y += 14;
-
-                C2D_TextParse(&text, g_textBuf, "  4. Restart the app");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PENDING);
-                y += 30;
-
-                C2D_TextParse(&text, g_textBuf, "Press START to exit");
-                C2D_TextOptimize(&text);
-                C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.45f, 0.45f, COLOR_PROGRESS);
-
-                C2D_TargetClear(g_bottom, COLOR_BG);
-                C2D_SceneBegin(g_bottom);
-                C3D_FrameEnd(0);
+                gui_draw_status("Config Created",
+                                "Edit sdmc:/3ds/zip-extractor/config.txt and restart.");
             }
         } else {
-            // Cannot create config - show error
             while (aptMainLoop()) {
                 hidScanInput();
                 if (hidKeysDown() & KEY_START) break;
                 gui_draw_error("Cannot Create Config", "SD card read-only? Press START");
             }
         }
-
-        // Force exit - user must edit config and restart
         goto exit_loop;
     }
 
-    if (url_count > 0) {
-        extract_path = queue->extract_path;
-    }
-    
-    // Show main menu immediately after loading config
+    const char* extract_path = (url_count > 0) ? queue->extract_path : "sdmc:/extracted/";
+
     gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
                        queue->auto_retry, queue->max_retries);
 
@@ -1088,45 +219,34 @@ int main(int argc, char** argv) {
     bool show_browser = false;
     int queue_page = 0;
 
-    // Allocate browser on heap to avoid stack overflow
     FileBrowser* browser = (FileBrowser*)calloc(1, sizeof(FileBrowser));
     if (!browser) {
         gui_draw_error("Warning", "File browser disabled (memory)");
-        // Continue without browser
     }
-
     int browser_scroll = 0;
-    
-    // Main loop - MUST render every frame like fast-uninstall
+
     while (aptMainLoop()) {
         hidScanInput();
         u32 kDown = hidKeysDown();
-        
-        if (kDown & KEY_START) {
-            break;
-        }
-        
-        // Render current screen state
+
+        if (kDown & KEY_START) break;
+
+        // Default render: main menu.
         if (!started && !show_queue && !show_browser) {
-            // Main menu - render every frame
             gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
-                              queue->auto_retry, queue->max_retries);
+                               queue->auto_retry, queue->max_retries);
         }
 
-        // File browser
-        if (show_browser) {
-            // TODO: implement gui_draw_file_browser
+        // ----- File browser -----
+        if (show_browser && browser) {
             if (kDown & KEY_UP) {
-                if (browser && browser->selected > 0) {
+                if (browser->selected > 0) {
                     browser->selected--;
-                    if (browser->selected < browser_scroll) {
-                        browser_scroll = browser->selected;
-                    }
+                    if (browser->selected < browser_scroll) browser_scroll = browser->selected;
                 }
             }
-            
             if (kDown & KEY_DOWN) {
-                if (browser && browser->selected < browser->count - 1) {
+                if (browser->selected < browser->count - 1) {
                     browser->selected++;
                     if (browser->selected >= browser_scroll + 14) {
                         browser_scroll = browser->selected - 13;
@@ -1134,34 +254,28 @@ int main(int argc, char** argv) {
                 }
                 display_file_browser(browser, browser_scroll);
             }
-            
             if (kDown & KEY_A) {
-                // Enter directory or select
                 if (browser->entries[browser->selected].is_directory) {
                     if (strcmp(browser->entries[browser->selected].name, "..") == 0) {
-                        // Go up one directory
                         char* last_slash = strrchr(browser->current_path, '/');
                         if (last_slash != NULL && last_slash != browser->current_path) {
                             *last_slash = '\0';
-                            // Handle case where we're at sdmc:/something
-                            if (strncmp(browser->current_path, "sdmc:", 5) == 0 && strlen(browser->current_path) == 5) {
+                            if (strncmp(browser->current_path, "sdmc:", 5) == 0
+                                && strlen(browser->current_path) == 5) {
                                 strcat(browser->current_path, "/");
                             }
                         }
                     } else {
-                        // Enter subdirectory - use safe string operations
                         size_t path_len = strlen(browser->current_path);
                         size_t name_len = strlen(browser->entries[browser->selected].name);
-
-                        // Check if we have enough space
                         if (path_len + name_len + 2 < MAX_PATH_LENGTH) {
                             if (browser->current_path[path_len - 1] != '/') {
-                                browser->current_path[path_len] = '/';
-                                browser->current_path[path_len + 1] = '\0';
-                                path_len++;
+                                browser->current_path[path_len++] = '/';
+                                browser->current_path[path_len] = '\0';
                             }
-                            strncat(browser->current_path, browser->entries[browser->selected].name,
-                                   MAX_PATH_LENGTH - path_len - 1);
+                            strncat(browser->current_path,
+                                    browser->entries[browser->selected].name,
+                                    MAX_PATH_LENGTH - path_len - 1);
                         }
                     }
                     load_directory(browser);
@@ -1169,63 +283,21 @@ int main(int argc, char** argv) {
                     display_file_browser(browser, browser_scroll);
                 }
             }
-            
             if (kDown & KEY_Y) {
-                // Use current directory
                 strncpy(queue->extract_path, browser->current_path, MAX_PATH_LENGTH - 1);
                 queue->extract_path[MAX_PATH_LENGTH - 1] = '\0';
-                // Ensure path ends with /
                 if (queue->extract_path[strlen(queue->extract_path) - 1] != '/') {
                     strcat(queue->extract_path, "/");
                 }
                 extract_path = queue->extract_path;
                 show_browser = false;
-                
-                // Return to main menu
-                consoleClear();
-                printf("\x1b[2;1HArchive Extractor for 3DS");
-                printf("\x1b[4;1H================================");
-                printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
-                printf("\x1b[8;1HConfig file:");
-                printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-                printf("\x1b[11;1HExtract path:");
-                printf("\x1b[12;1H  %s", extract_path);
-                if (queue->auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
-                }
-                printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
-                printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
-                printf("\x1b[17;1HPress A to start downloads");
-                printf("\x1b[18;1HPress X to view queue");
-                printf("\x1b[19;1HPress SELECT to browse path");
-                printf("\x1b[20;1HPress START to exit");
             }
-            
             if (kDown & KEY_B) {
                 show_browser = false;
-                
-                // Return to main menu
-                consoleClear();
-                printf("\x1b[2;1HArchive Extractor for 3DS");
-                printf("\x1b[4;1H================================");
-                printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
-                printf("\x1b[8;1HConfig file:");
-                printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-                printf("\x1b[11;1HExtract path:");
-                printf("\x1b[12;1H  %s", extract_path);
-                if (queue->auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
-                }
-                printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
-                printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
-                printf("\x1b[17;1HPress A to start downloads");
-                printf("\x1b[18;1HPress X to view queue");
-                printf("\x1b[19;1HPress SELECT to browse path");
-                printf("\x1b[20;1HPress START to exit");
             }
         }
-        
-        // Show file browser
+
+        // Open file browser.
         if ((kDown & KEY_SELECT) && url_count > 0 && !started && !show_queue && !show_browser && browser) {
             show_browser = true;
             init_file_browser(browser, "sdmc:/");
@@ -1233,23 +305,19 @@ int main(int argc, char** argv) {
             browser_scroll = 0;
             display_file_browser(browser, browser_scroll);
         }
-        
-        // Queue navigation
+
+        // ----- Queue view -----
         if (show_queue) {
             int total_pages = (url_count + 11) / 12;
-            
             if ((kDown & KEY_R) && queue_page < total_pages - 1) {
                 queue_page++;
                 display_queue_status(queue, queue_page);
             }
-            
             if ((kDown & KEY_L) && queue_page > 0) {
                 queue_page--;
                 display_queue_status(queue, queue_page);
             }
-            
             if (kDown & KEY_Y) {
-                // Skip all failed downloads
                 for (int i = 0; i < url_count; i++) {
                     if (queue->items[i].state == DOWNLOAD_FAILED) {
                         queue->items[i].state = DOWNLOAD_SKIPPED;
@@ -1257,180 +325,116 @@ int main(int argc, char** argv) {
                 }
                 display_queue_status(queue, queue_page);
             }
-            
             if (kDown & KEY_B) {
                 show_queue = false;
                 queue_page = 0;
-                consoleClear();
-                printf("\x1b[2;1HArchive Extractor for 3DS");
-                printf("\x1b[4;1H================================");
-                printf("\x1b[6;1HLoaded %d URL(s) from config", url_count);
-                printf("\x1b[8;1HConfig file:");
-                printf("\x1b[9;1H  %s", CONFIG_FILE_PATH);
-                printf("\x1b[11;1HExtract path:");
-                printf("\x1b[12;1H  %s", extract_path);
-                if (queue->auto_retry) {
-                    printf("\x1b[13;1HAuto-retry: ON (max %d)", queue->max_retries);
-                }
-                printf("\x1b[14;1HSupports: ZIP, TAR, 7Z, RAR");
-                printf("\x1b[15;1H          TAR.GZ, TAR.BZ2, etc.");
-                printf("\x1b[17;1HPress A to start downloads");
-                printf("\x1b[18;1HPress X to view queue");
-                printf("\x1b[19;1HPress START to exit");
             }
-            
             if ((kDown & KEY_A) && !started) {
                 show_queue = false;
                 started = true;
-                // Continue to processing below
             }
         }
-        
-        // Show queue
         if ((kDown & KEY_X) && url_count > 0 && !started && !show_queue) {
             show_queue = true;
             queue_page = 0;
             display_queue_status(queue, queue_page);
         }
-        
-        // Start processing
+
+        // ----- Start processing -----
         if ((kDown & KEY_A) && url_count > 0 && !started && !show_queue) {
             started = true;
         }
-        
+
         if (started) {
-            // Create extract directory
             mkdir(extract_path, 0777);
-            
+
             int successful = 0;
             int failed = 0;
             int skipped = 0;
             u64 total_files_extracted = 0;
-            
-            // Process each URL in queue
+
             for (int i = 0; i < url_count && !cancelled; i++) {
-                // Skip items that are skipped or already completed
-                if (queue->items[i].state == DOWNLOAD_SKIPPED) {
-                    skipped++;
-                    continue;
-                }
-                if (queue->items[i].state == DOWNLOAD_COMPLETED) {
-                    successful++;
-                    continue;
-                }
-                
+                if (queue->items[i].state == DOWNLOAD_SKIPPED) { skipped++;    continue; }
+                if (queue->items[i].state == DOWNLOAD_COMPLETED) { successful++; continue; }
+
                 queue->items[i].state = DOWNLOAD_IN_PROGRESS;
-                
                 int retries = 0;
                 bool download_success = false;
-                
+
+                // Per-URL temp path so concurrent runs / aborts don't collide.
+                char temp_path[160];
+                download_make_temp_path(temp_path, sizeof(temp_path));
+
                 do {
-                    consoleClear();
-                    printf("\x1b[2;1HArchive Extractor for 3DS");
-                    printf("\x1b[4;1H================================");
-                    printf("\x1b[6;1HProcessing file %d of %d", i + 1, url_count);
-                    if (retries > 0) {
-                        printf("\x1b[7;1HRetry attempt %d/%d", retries, queue->max_retries);
-                    }
-                    printf("\x1b[9;1HStarting download...");
-                    
-                    gfxFlushBuffers();
-                    gfxSwapBuffers();
-                    gspWaitForVBlank();
-                    
-                    // Download file
-                    Result download_result = download_file(queue->items[i].url, TEMP_DOWNLOAD_PATH, &cancelled, i + 1, url_count);
-                    
-                    if (cancelled) {
-                        break;
-                    }
-                    
-                    if (download_result == 0) {
-                        // Download completed - Trigger pink LED notification
+                    Result rc = download_file(queue, queue->items[i].url, temp_path,
+                                              &cancelled, i + 1, url_count);
+                    if (cancelled) break;
+
+                    if (rc == 0) {
                         led_notification_pink();
 
-                        // Extract archive
-                        Result extract_result = extract_archive(TEMP_DOWNLOAD_PATH, extract_path, i + 1, url_count);
-                        
-                        if (extract_result == 0) {
-                            queue->items[i].state = DOWNLOAD_COMPLETED;
-                            successful++;
-                            total_files_extracted += extract_data.extracted_files;
-                            download_success = true;
-                        } else if (extract_result == -2) {
-                            cancelled = true;
-                            break;
+                        // Optional integrity check.
+                        if (queue->items[i].sha256_hex[0] != '\0' &&
+                            !verify_integrity(temp_path, queue->items[i].sha256_hex)) {
+                            strncpy(queue->items[i].error_msg, "SHA256 mismatch",
+                                    sizeof(queue->items[i].error_msg) - 1);
+                            remove(temp_path);
                         } else {
-                            strncpy(queue->items[i].error_msg, "Extraction failed", sizeof(queue->items[i].error_msg) - 1);
+                            Result er = extract_archive(temp_path, extract_path);
+                            if (er == 0) {
+                                queue->items[i].state = DOWNLOAD_COMPLETED;
+                                successful++;
+                                total_files_extracted += extract_data.extracted_files;
+                                download_success = true;
+                            } else if (er == -2) {
+                                cancelled = true;
+                                break;
+                            } else {
+                                strncpy(queue->items[i].error_msg, "Extraction failed",
+                                        sizeof(queue->items[i].error_msg) - 1);
+                            }
+                            remove(temp_path);
                         }
-                        
-                        // Clean up temp file
-                        remove(TEMP_DOWNLOAD_PATH);
                     } else {
-                        strncpy(queue->items[i].error_msg, "Download failed", sizeof(queue->items[i].error_msg) - 1);
+                        strncpy(queue->items[i].error_msg, "Download failed",
+                                sizeof(queue->items[i].error_msg) - 1);
                     }
-                    
+
                     if (!download_success && queue->auto_retry && retries < queue->max_retries) {
                         retries++;
-                        // Wait a bit before retry
-                        svcSleepThread(2000000000LL); // 2 seconds
+                        svcSleepThread(2000000000LL); // 2s before retry
                     } else {
                         break;
                     }
-                    
                 } while (!download_success && retries <= queue->max_retries);
-                
+
                 if (!download_success && !cancelled) {
                     queue->items[i].state = DOWNLOAD_FAILED;
                     failed++;
                 }
             }
-            
-            // Show summary
-            consoleClear();
-            printf("\x1b[2;1HArchive Extractor for 3DS");
-            printf("\x1b[4;1H================================");
-            
-            if (cancelled) {
-                printf("\x1b[6;1HOperation cancelled!");
-            } else {
-                printf("\x1b[6;1HAll downloads complete!");
-            }
-            
-            printf("\x1b[8;1HSummary:");
-            printf("\x1b[9;1H  Successful: %d", successful);
-            printf("\x1b[10;1H  Failed: %d", failed);
-            printf("\x1b[11;1H  Skipped: %d", skipped);
-            printf("\x1b[12;1H  Total files extracted: %llu", total_files_extracted);
-            printf("\x1b[14;1HOutput directory:");
-            printf("\x1b[15;1H  %s", extract_path);
-            
-            if (failed > 0) {
-                printf("\x1b[17;1HPress X to view failed items");
-                printf("\x1b[18;1HPress A to retry failed");
-            }
-            printf("\x1b[19;1HPress START to exit");
-            
+
+            // Summary screen.
+            char summary[160];
+            snprintf(summary, sizeof(summary),
+                     cancelled ? "Cancelled. OK %d, FAIL %d, SKIP %d, files %llu"
+                               : "Done. OK %d, FAIL %d, SKIP %d, files %llu",
+                     successful, failed, skipped,
+                     (unsigned long long)total_files_extracted);
+            gui_draw_status("Archive Extractor for 3DS", summary);
+
             started = false;
-            
-            // Wait for user input
             while (aptMainLoop()) {
                 hidScanInput();
                 u32 kDown2 = hidKeysDown();
-                
-                if (kDown2 & KEY_START) {
-                    goto exit_loop;
-                }
-                
+                if (kDown2 & KEY_START) goto exit_loop;
                 if ((kDown2 & KEY_X) && failed > 0) {
                     show_queue = true;
                     queue_page = 0;
                     display_queue_status(queue, queue_page);
                     break;
                 }
-                
                 if ((kDown2 & KEY_A) && failed > 0) {
-                    // Reset failed items to pending and restart
                     for (int i = 0; i < url_count; i++) {
                         if (queue->items[i].state == DOWNLOAD_FAILED) {
                             queue->items[i].state = DOWNLOAD_PENDING;
@@ -1439,42 +443,31 @@ int main(int argc, char** argv) {
                     started = true;
                     break;
                 }
-                
                 gfxFlushBuffers();
                 gfxSwapBuffers();
                 gspWaitForVBlank();
             }
         }
-        
+
         gfxFlushBuffers();
         gfxSwapBuffers();
         gspWaitForVBlank();
     }
-    
-exit_loop:
-    
-    // Turn off LED notifications
-    led_notification_off();
 
-    // Restore normal sleep mode
+exit_loop:
+    led_notification_off();
     restore_sleep_mode();
 
-    // Free allocated memory
-    if (browser) {
-        free(browser);
-    }
-    if (queue) {
-        free(queue);
-    }
+    download_cleanup_orphans();
+
+    if (browser) free(browser);
+    if (queue)   free(queue);
 
     curl_global_cleanup();
     socExit();
     free(socMemory);
-    
 
-    // Cleanup PTMU
     ptmuExit();
-
     gfxExit();
     return 0;
 }
