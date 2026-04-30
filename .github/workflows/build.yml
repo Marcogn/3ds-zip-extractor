@@ -7,10 +7,15 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 jobs:
   build-3ds:
     name: Build .3dsx (devkitARM)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     container:
       image: devkitpro/devkitarm:latest
     steps:
@@ -35,6 +40,8 @@ jobs:
   host-tests:
     name: Host unit tests (ASAN/UBSAN)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
