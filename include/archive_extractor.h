@@ -34,4 +34,13 @@ int extract_archive_libarchive(const char* archive_path, const char* output_dir,
 // Check if file is a supported archive
 bool is_supported_archive(const char* file_path);
 
+// Count the number of entries in `path` by performing a read-only pass
+// with libarchive. Returns the entry count, or -1 if the archive is not
+// seekable, the format isn't recognised, or the API otherwise fails.
+//
+// Pre-counting allows the GUI to render a percentage progress bar during
+// extraction. Callers may pass `-1` through to the extraction callback to
+// fall back to the spinner when the count isn't available.
+int archive_count_entries(const char* path);
+
 #endif // ARCHIVE_EXTRACTOR_H

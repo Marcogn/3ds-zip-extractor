@@ -215,3 +215,40 @@ int extract_archive_libarchive(const char* archive_path, const char* output_dir,
 
     return cancelled ? -4 : file_count;
 }
+
+int archive_count_entries(const char* path) {
+    if (!path) return -1;
+
+    struct archive* a = archive_read_new();
+    if (!a) return -1;
+
+    archive_read_support_format_all(a);
+    archive_read_support_filter_bzip2(a);
+    archive_read_support_filter_gzip(a);
+    archive_read_support_filter_xz(a);
+    archive_read_support_filter_zstd(a);
+
+    int r = archive_read_open_filename(a, path, BUFFER_SIZE);
+    if (r != ARCHIVE_OK) {
+        archive_read_free(a);
+        return -1;
+    }
+
+    int count = 0;
+    struct archive_entry* entry;
+    while (true) {
+        r = archive_read_next_header(a, &entry);
+        if (r == ARCHIVE_EOF) break;
+        if (r == ARCHIVE_FATAL) {
+            archive_read_close(a);
+            archive_read_free(a);
+            return -1;
+        }
+        if (r != ARCHIVE_OK && r != ARCHIVE_WARN) continue;
+        count++;
+    }
+
+    archive_read_close(a);
+    archive_read_free(a);
+    return count;
+}

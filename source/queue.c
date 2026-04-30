@@ -71,8 +71,10 @@ void display_queue_status(DownloadQueue* queue, int current_page) {
     C2D_TextOptimize(&text);
     C2D_DrawText(&text, C2D_WithColor, 10.0f, y, 0.5f, 0.35f, 0.35f, COLOR_PROGRESS);
 
-    C2D_TargetClear(g_bottom, COLOR_BG);
-    C2D_SceneBegin(g_bottom);
+    // Persistent bottom queue + action bar (shares the bottom context set
+    // by main.c, so the user can toggle items / press the action bar
+    // straight from the queue view as well).
+    gui_draw_bottom_persistent();
 
     C3D_FrameEnd(0);
 }

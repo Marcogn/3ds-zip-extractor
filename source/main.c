@@ -13,9 +13,11 @@
 #include "download.h"
 #include "file_browser.h"
 #include "gui.h"
+#include "gui_widgets.h"
 #include "integrity.h"
 #include "led.h"
 #include "queue.h"
+#include "url_input.h"
 
 #define CONFIG_FILE_PATH "sdmc:/3ds/zip-extractor/config.txt"
 
@@ -26,6 +28,7 @@ static bool g_use_gui = false;
 // Tracks the currently-extracting archive for the GUI callback.
 typedef struct {
     u64 extracted_files;
+    int total_files;        // -1 when unknown
     char current_file[256];
 } ExtractData;
 static ExtractData extract_data = {0};
@@ -48,7 +51,7 @@ static bool extraction_progress_callback(int file_count, const char* current_fil
     strncpy(extract_data.current_file, current_file, sizeof(extract_data.current_file) - 1);
     extract_data.current_file[sizeof(extract_data.current_file) - 1] = '\0';
 
-    gui_draw_extraction(current_file, file_count);
+    gui_draw_extraction(current_file, file_count, extract_data.total_files);
 
     hidScanInput();
     if (hidKeysDown() & KEY_B) {
@@ -59,9 +62,11 @@ static bool extraction_progress_callback(int file_count, const char* current_fil
 
 // Extract `archive_path` into `output_dir`. Returns 0 on success, -1 on
 // hard error, -2 if cancelled by user.
-static Result extract_archive(const char* archive_path, const char* output_dir) {
+static Result extract_archive(const char* archive_path, const char* output_dir,
+                              bool delete_after) {
     extract_data.extracted_files = 0;
     extract_data.current_file[0] = '\0';
+    extract_data.total_files = -1;
 
     ArchiveType type = detect_archive_type(archive_path);
     const char* type_name = get_archive_type_name(type);
@@ -80,9 +85,15 @@ static Result extract_archive(const char* archive_path, const char* output_dir) 
         return -1;
     }
 
+    // Pre-count entries for the percentage progress bar. -1 falls back to
+    // the spinner inside `gui_draw_extraction`.
+    extract_data.total_files = archive_count_entries(archive_path);
+
     int file_count = extract_archive_libarchive(archive_path, output_dir,
                                                  extraction_progress_callback, NULL);
-    remove(archive_path);
+    if (delete_after) {
+        remove(archive_path);
+    }
 
     if (file_count == -4) {
         gui_draw_status("Archive Extractor for 3DS", "Extraction cancelled!");
@@ -118,6 +129,12 @@ static Result extract_archive(const char* archive_path, const char* output_dir) 
 
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
+
+    // Variables touched by the `exit_loop:` cleanup must be declared up
+    // front so any early `goto exit_loop` from initialisation paths
+    // doesn't reach an uninitialised free().
+    FileBrowser* browser = NULL;
+    int browser_scroll = 0;
 
     gfxInitDefault();
     g_use_gui = gui_init(&g_gui);
@@ -210,6 +227,11 @@ int main(int argc, char** argv) {
 
     const char* extract_path = (url_count > 0) ? queue->extract_path : "sdmc:/extracted/";
 
+    // Persistent bottom-screen queue context.
+    gui_scroll_t bottom_scroll = {0};
+    gui_set_bottom_context(queue, &bottom_scroll);
+    gui_set_bottom_active(-1);
+
     gui_draw_main_menu(url_count, CONFIG_FILE_PATH, extract_path,
                        queue->auto_retry, queue->max_retries);
 
@@ -219,15 +241,31 @@ int main(int argc, char** argv) {
     bool show_browser = false;
     int queue_page = 0;
 
-    FileBrowser* browser = (FileBrowser*)calloc(1, sizeof(FileBrowser));
+    browser = (FileBrowser*)calloc(1, sizeof(FileBrowser));
     if (!browser) {
         gui_draw_error("Warning", "File browser disabled (memory)");
     }
-    int browser_scroll = 0;
 
     while (aptMainLoop()) {
         hidScanInput();
         u32 kDown = hidKeysDown();
+
+        // Inject virtual key events from touch on the bottom action bar
+        // (only when the bottom queue is the active bottom screen, i.e.
+        // not while the file browser is up).
+        char action = '\0';
+        if (!show_browser) {
+            bool interactive = !started;  // toggle list only when idle
+            gui_bottom_queue_handle(queue, &bottom_scroll, interactive, &action);
+            switch (action) {
+                case 'A': kDown |= KEY_A;     break;
+                case 'B': kDown |= KEY_B;     break;
+                case 'X': kDown |= KEY_X;     break;
+                case 'Y': kDown |= KEY_Y;     break;
+                case 'S': kDown |= KEY_START; break;
+                default: break;
+            }
+        }
 
         if (kDown & KEY_START) break;
 
@@ -255,8 +293,9 @@ int main(int argc, char** argv) {
                 display_file_browser(browser, browser_scroll);
             }
             if (kDown & KEY_A) {
-                if (browser->entries[browser->selected].is_directory) {
-                    if (strcmp(browser->entries[browser->selected].name, "..") == 0) {
+                DirEntry* sel = &browser->entries[browser->selected];
+                if (sel->is_directory) {
+                    if (strcmp(sel->name, "..") == 0) {
                         char* last_slash = strrchr(browser->current_path, '/');
                         if (last_slash != NULL && last_slash != browser->current_path) {
                             *last_slash = '\0';
@@ -267,21 +306,58 @@ int main(int argc, char** argv) {
                         }
                     } else {
                         size_t path_len = strlen(browser->current_path);
-                        size_t name_len = strlen(browser->entries[browser->selected].name);
+                        size_t name_len = strlen(sel->name);
                         if (path_len + name_len + 2 < MAX_PATH_LENGTH) {
                             if (browser->current_path[path_len - 1] != '/') {
                                 browser->current_path[path_len++] = '/';
                                 browser->current_path[path_len] = '\0';
                             }
-                            strncat(browser->current_path,
-                                    browser->entries[browser->selected].name,
+                            strncat(browser->current_path, sel->name,
                                     MAX_PATH_LENGTH - path_len - 1);
                         }
                     }
                     load_directory(browser);
                     browser_scroll = 0;
                     display_file_browser(browser, browser_scroll);
+                } else {
+                    // Selected a file: try local archive extraction.
+                    char file_path[MAX_PATH_LENGTH + 260];
+                    size_t path_len = strlen(browser->current_path);
+                    if (path_len > 0 && browser->current_path[path_len - 1] == '/') {
+                        snprintf(file_path, sizeof(file_path), "%s%s",
+                                 browser->current_path, sel->name);
+                    } else {
+                        snprintf(file_path, sizeof(file_path), "%s/%s",
+                                 browser->current_path, sel->name);
+                    }
+                    if (is_supported_archive(file_path)) {
+                        char prompt[300];
+                        snprintf(prompt, sizeof(prompt),
+                                 "Extract this archive?\n%.250s", sel->name);
+                        int ans = gui_confirm_prompt("Extract local archive", prompt);
+                        if (ans == 1) {
+                            mkdir(extract_path, 0777);
+                            Result er = extract_archive(file_path, extract_path, false);
+                            if (er == 0) {
+                                gui_draw_status("Done",
+                                    "Local archive extracted. Press A to continue.");
+                                while (aptMainLoop()) {
+                                    hidScanInput();
+                                    if (hidKeysDown() & KEY_A) break;
+                                }
+                            }
+                            display_file_browser(browser, browser_scroll);
+                        }
+                    } else {
+                        gui_tooltip("Not a supported archive", 1500);
+                        display_file_browser(browser, browser_scroll);
+                    }
                 }
+            }
+            if (kDown & KEY_X) {
+                load_directory(browser);
+                browser_scroll = 0;
+                display_file_browser(browser, browser_scroll);
             }
             if (kDown & KEY_Y) {
                 strncpy(queue->extract_path, browser->current_path, MAX_PATH_LENGTH - 1);
@@ -304,6 +380,42 @@ int main(int argc, char** argv) {
             load_directory(browser);
             browser_scroll = 0;
             display_file_browser(browser, browser_scroll);
+        }
+
+        // ----- swkbd: add URL from menu -----
+        if ((kDown & KEY_Y) && !started && !show_queue && !show_browser) {
+            if (queue->count >= queue->max_urls || queue->count >= MAX_URLS) {
+                gui_draw_error_timed("Queue full",
+                    "Cannot add more URLs (max_urls reached)", 2000);
+            } else {
+                char new_url[MAX_URL_LENGTH];
+                new_url[0] = '\0';
+                if (url_input_prompt(new_url, sizeof(new_url))) {
+                    if (!url_is_valid_http(new_url)) {
+                        gui_draw_error_timed("Invalid URL",
+                            "Must start with http:// or https://", 2000);
+                    } else {
+                        int idx = queue->count;
+                        DownloadItem* it = &queue->items[idx];
+                        memset(it, 0, sizeof(*it));
+                        // Bound the source by the smaller of the strlen
+                        // and the dest capacity to silence gcc's
+                        // -Wstringop-truncation while preserving the
+                        // existing truncation semantics.
+                        size_t nlen = strnlen(new_url, MAX_URL_LENGTH - 1);
+                        memcpy(it->url, new_url, nlen);
+                        it->url[nlen] = '\0';
+                        it->state = DOWNLOAD_PENDING;
+                        queue->count++;
+                        url_count = queue->count;
+
+                        bool persist = gui_confirm_persist_url(it->url, 3000);
+                        if (persist) {
+                            url_input_append_to_config(CONFIG_FILE_PATH, it->url);
+                        }
+                    }
+                }
+            }
         }
 
         // ----- Queue view -----
@@ -358,6 +470,7 @@ int main(int argc, char** argv) {
                 if (queue->items[i].state == DOWNLOAD_COMPLETED) { successful++; continue; }
 
                 queue->items[i].state = DOWNLOAD_IN_PROGRESS;
+                gui_set_bottom_active(i);
                 int retries = 0;
                 bool download_success = false;
 
@@ -380,7 +493,7 @@ int main(int argc, char** argv) {
                                     sizeof(queue->items[i].error_msg) - 1);
                             remove(temp_path);
                         } else {
-                            Result er = extract_archive(temp_path, extract_path);
+                            Result er = extract_archive(temp_path, extract_path, true);
                             if (er == 0) {
                                 queue->items[i].state = DOWNLOAD_COMPLETED;
                                 successful++;
@@ -413,6 +526,7 @@ int main(int argc, char** argv) {
                     failed++;
                 }
             }
+            gui_set_bottom_active(-1);
 
             // Summary screen.
             char summary[160];
