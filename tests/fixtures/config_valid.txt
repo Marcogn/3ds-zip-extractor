@@ -1,0 +1,8 @@
+extract_path=sdmc:/foo/
+auto_retry=true
+max_retries=5
+https://example.com/a.zip
+https://example.com/b.tar.gz sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+# comment line
+# another
+https://drive.google.com/file/d/ABC123/view

@@ -50,9 +50,19 @@ extract_path=sdmc:/extracted/
 auto_retry=true
 max_retries=3
 
+# Optional limits (defaults shown)
+# max_urls=100
+# download_buffer_kb=128
+# connect_timeout_s=30
+
 # Add URLs below
 https://example.com/file.zip
+
+# Optional: integrity check — append " sha256:<64-hex>" to a URL
+https://example.com/strict.zip sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
+
+The format is **backwards-compatible with v1.0** config files.
 
 ---
 
@@ -60,9 +70,11 @@ https://example.com/file.zip
 
 | Button | Action |
 |--------|--------|
-| A | Start/Confirm |
+| A | Start / Confirm |
 | B | Cancel |
 | X | View queue |
+| Y | (in queue view) Mark failed items as skipped |
+| L / R | (in queue view) Page through URLs |
 | SELECT | File browser |
 | START | Exit |
 | D-Pad | Navigate |
@@ -71,10 +83,35 @@ https://example.com/file.zip
 
 ## Building
 
+### Native (devkitPRO)
+
 ```bash
-# Requires devkitPRO
+# Requires devkitPRO + devkitARM + portlibs 3DS
 make
 ```
+
+### Docker (no local devkitPRO needed)
+
+```bash
+docker run --rm -v "$PWD":/src -w /src devkitpro/devkitarm:latest make
+```
+
+This is the same image used by CI; useful for reproducible builds.
+
+### Host unit tests
+
+The pure modules (`config`, `gdrive`, `integrity`, archive detection)
+have an off-target unit-test suite that runs on a normal Linux/macOS
+PC — no devkitARM, no 3DS:
+
+```bash
+make -C tests -f Makefile.host test         # plain build
+make -C tests -f Makefile.host test-asan    # with AddressSanitizer + UBSan
+make -C tests -f Makefile.host coverage     # gcov/lcov HTML report
+```
+
+The CI pipeline runs both `build-3ds` (Docker) and `host-tests`
+(ASan/UBSan); both must be green for a PR to be merged.
 
 ---
 
@@ -87,4 +124,5 @@ MIT License - see [LICENSE](LICENSE)
 ## Links
 
 - [Changelog](CHANGELOG.md)
+- [Architecture](docs/ARCHITECTURE.md)
 - [Contributing](CONTRIBUTING.md)

@@ -1,0 +1,6 @@
+extract_path=sdmc:/x/
+auto_retry=invalid
+max_retries=999
+unknown_setting=42
+https://example.com/a.zip sha256:notavalidhash
+https://example.com/b.zip sha256:0123456789abcdef0123456789ABCDEF0123456789abcdef0123456789abcdef
