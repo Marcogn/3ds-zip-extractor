@@ -40,6 +40,10 @@ tests/test_gdrive
 tests/test_config
 tests/test_archive_detect
 tests/test_sha256
+tests/test_integrity
+tests/test_url_input
+tests/test_speed_meter
+tests/test_eta_format
 tests/*.gcda
 tests/*.gcno
 tests/coverage/
