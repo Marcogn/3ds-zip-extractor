@@ -20,8 +20,7 @@ static const char* SHA256_EMPTY =
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 // Helper: write `content`/`len` to a fresh temp file, return the path in
-// `out_path` (must be at least 32 bytes).  Returns the fd (caller must
-// close it) or -1 on error.
+// `out_path` (must be at least 32 bytes).  Returns 0 on success, -1 on error.
 static int make_tmpfile(const char* content, size_t len, char* out_path) {
     strcpy(out_path, "/tmp/test_integrity_XXXXXX");
     int fd = mkstemp(out_path);
@@ -35,7 +34,7 @@ static int make_tmpfile(const char* content, size_t len, char* out_path) {
         }
     }
     close(fd);
-    return fd;  // already closed, but non-negative signals success
+    return 0;
 }
 
 // 1. Known content → correct SHA-256 → verify_integrity returns true.
