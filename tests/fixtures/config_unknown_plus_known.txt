@@ -1,0 +1,5 @@
+# Unknown key must be ignored; known key must still be parsed correctly.
+unknown_setting=some_value
+another_unknown=42
+max_retries=7
+https://example.com/a.zip

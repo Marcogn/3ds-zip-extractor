@@ -31,12 +31,13 @@ TEST_GDRIVE          := test_gdrive
 TEST_CONFIG          := test_config
 TEST_ARCHIVE_DETECT  := test_archive_detect
 TEST_SHA256          := test_sha256
+TEST_INTEGRITY       := test_integrity
 TEST_URL_INPUT       := test_url_input
 TEST_SPEED_METER     := test_speed_meter
 TEST_ETA_FORMAT      := test_eta_format
 
 ALL_TESTS := $(TEST_GDRIVE) $(TEST_CONFIG) $(TEST_ARCHIVE_DETECT) $(TEST_SHA256) \
-             $(TEST_URL_INPUT) $(TEST_SPEED_METER) $(TEST_ETA_FORMAT)
+             $(TEST_INTEGRITY) $(TEST_URL_INPUT) $(TEST_SPEED_METER) $(TEST_ETA_FORMAT)
 
 .PHONY: all test test-asan clean fixtures coverage help
 
@@ -61,6 +62,9 @@ $(TEST_ARCHIVE_DETECT): test_archive_detect.c $(UNITY) ../source/archive_extract
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 $(TEST_SHA256): test_sha256.c $(UNITY) $(PROJECT_PURE)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+$(TEST_INTEGRITY): test_integrity.c $(UNITY) $(PROJECT_PURE)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 $(TEST_URL_INPUT): test_url_input.c $(UNITY) ../source/url_input.c ../source/config.c

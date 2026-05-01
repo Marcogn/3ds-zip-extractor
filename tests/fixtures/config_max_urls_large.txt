@@ -1,0 +1,3 @@
+# max_urls=99999 should be clamped to MAX_URLS (100)
+max_urls=99999
+https://example.com/a.zip

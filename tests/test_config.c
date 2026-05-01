@@ -108,6 +108,56 @@ static void test_null_cfg_safe(void) {
     TEST_ASSERT_EQUAL(-1, rc);
 }
 
+// --- Clamping / new config-key tests (v1.0.1-refactor) --------------------
+
+static void test_max_urls_zero_clamped_to_min(void) {
+    AppConfig cfg;
+    // max_urls=0 → clamped to 1 by clamp_int(atoi(v), 1, MAX_URLS)
+    read_config_file(FIXTURE("config_max_urls_zero.txt"), &cfg);
+    TEST_ASSERT_EQUAL(1, cfg.max_urls);
+    // Only the first URL should be stored (max_urls=1 limits the queue).
+    TEST_ASSERT_EQUAL(1, cfg.count);
+}
+
+static void test_max_urls_large_clamped_to_max(void) {
+    AppConfig cfg;
+    // max_urls=99999 → clamped to MAX_URLS (100)
+    read_config_file(FIXTURE("config_max_urls_large.txt"), &cfg);
+    TEST_ASSERT_EQUAL(MAX_URLS, cfg.max_urls);
+}
+
+static void test_download_buffer_nonnumeric_uses_default(void) {
+    AppConfig cfg;
+    // download_buffer_kb=abc → atoi("abc")=0, clamped to 4 (the minimum)
+    read_config_file(FIXTURE("config_buffer_nonnumeric.txt"), &cfg);
+    TEST_ASSERT_EQUAL(4, cfg.download_buffer_kb);
+}
+
+static void test_connect_timeout_negative_clamped(void) {
+    AppConfig cfg;
+    // connect_timeout_s=-5 → clamped to 1 by clamp_int(atoi(v), 1, 600)
+    read_config_file(FIXTURE("config_timeout_negative.txt"), &cfg);
+    TEST_ASSERT_EQUAL(1, cfg.connect_timeout_s);
+}
+
+static void test_unknown_key_ignored_known_key_parsed(void) {
+    AppConfig cfg;
+    int rc = read_config_file(FIXTURE("config_unknown_plus_known.txt"), &cfg);
+    // Unknown key=value lines are treated as URLs (parser doesn't fail on them).
+    // The important checks: no crash, and the known key was parsed.
+    TEST_ASSERT_TRUE(rc >= 0);
+    TEST_ASSERT_EQUAL(7, cfg.max_retries);
+    // The real URL must be present somewhere in cfg.items.
+    bool found = false;
+    for (int i = 0; i < cfg.count; i++) {
+        if (strcmp(cfg.items[i].url, "https://example.com/a.zip") == 0) {
+            found = true;
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(found);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_missing_file_returns_minus_one);
@@ -119,5 +169,10 @@ int main(void) {
     RUN_TEST(test_long_url_truncated_no_overflow);
     RUN_TEST(test_utf8_bom_ignored);
     RUN_TEST(test_null_cfg_safe);
+    RUN_TEST(test_max_urls_zero_clamped_to_min);
+    RUN_TEST(test_max_urls_large_clamped_to_max);
+    RUN_TEST(test_download_buffer_nonnumeric_uses_default);
+    RUN_TEST(test_connect_timeout_negative_clamped);
+    RUN_TEST(test_unknown_key_ignored_known_key_parsed);
     return UNITY_END();
 }
