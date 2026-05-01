@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+- **`tests/test_integrity.c`** — 8-case host test suite for `verify_integrity()`:
+  correct hash, wrong hash, missing path, short hash, long hash, non-hex chars,
+  empty file, and uppercase hex accepted case-insensitively. Temp files are
+  created with `mkstemp()`; no `sdmc:` paths used.
+- **Config clamping tests** — 5 new cases in `tests/test_config.c` covering
+  `max_urls=0` (→ 1), `max_urls=99999` (→ 100), `download_buffer_kb=abc` (→ 4),
+  `connect_timeout_s=-5` (→ 1), and unknown key + known key (parsed correctly).
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1 at the repository root.
+
+### Changed
+- Release notes moved from root to `docs/release-notes/`
+  (`RELEASE_NOTES_v1.0.md`, `RELEASE_NOTES_v1.1.0.md`).
+
 ## [1.1.0] - 2026-04-30
 
 ### Added — Phase 3 UX/GUI

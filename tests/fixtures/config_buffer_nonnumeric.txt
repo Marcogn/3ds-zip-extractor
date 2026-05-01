@@ -1,0 +1,3 @@
+# download_buffer_kb with non-numeric value — atoi("abc")=0, clamped to 4
+download_buffer_kb=abc
+https://example.com/a.zip
